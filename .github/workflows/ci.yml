@@ -70,3 +70,20 @@ jobs:
       - name: Build
         working-directory: platform
         run: bun run build
+
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install site dependencies
+        working-directory: site
+        run: bun install
+
+      - name: Build site
+        working-directory: site
+        run: bun run build
