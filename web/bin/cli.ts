@@ -15,7 +15,7 @@ const CTL_COMMANDS = new Set([
 
 function printUsage(): void {
   console.log(`
-Usage: companion [command]
+Usage: companion-incus [command]
 
 Server commands:
   (none)      Start the server in foreground (default)
@@ -25,7 +25,7 @@ Server commands:
   stop        Stop the background service
   restart     Restart the background service
   uninstall   Remove the background service
-  status      Show service status (or use 'companion status' when server is running)
+  status      Show service status (or use 'companion-incus status' when server is running)
   logs        Tail service log files
   help        Show this help message
 
@@ -105,13 +105,13 @@ switch (command) {
       const { status } = await import("../server/service.js");
       const result = await status();
       if (!result.installed) {
-        console.log("The Companion is not installed as a service.");
-        console.log("Run: companion install");
+        console.log("Companion Incus is not installed as a service.");
+        console.log("Run: companion-incus install");
       } else if (result.running) {
-        console.log(`The Companion is running (PID: ${result.pid})`);
+        console.log(`Companion Incus is running (PID: ${result.pid})`);
         console.log(`  URL: http://localhost:${result.port}`);
       } else {
-        console.log("The Companion is installed but not running.");
+        console.log("Companion Incus is installed but not running.");
         console.log("Check logs at ~/.companion/logs/");
       }
     }
