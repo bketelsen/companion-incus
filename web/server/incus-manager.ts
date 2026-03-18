@@ -208,12 +208,20 @@ export class IncusManager {
         timeout: CONTAINER_BOOT_TIMEOUT_MS,
       });
 
-      // 2. Wait for cloud-init + network
-      report("Waiting for cloud-init...");
-      exec(`incus exec ${shellEscape(buildName)} -- cloud-init status --wait`, {
-        encoding: "utf-8",
-        timeout: 120_000,
-      });
+      // 2. Wait for network readiness (ubuntu/24.04 has no cloud-init)
+      report("Waiting for network...");
+      const networkDeadline = Date.now() + 30_000;
+      while (Date.now() < networkDeadline) {
+        try {
+          exec(`incus exec ${shellEscape(buildName)} -- getent hosts archive.ubuntu.com`, {
+            encoding: "utf-8",
+            timeout: 5_000,
+          });
+          break;
+        } catch {
+          await new Promise(r => setTimeout(r, 1_000));
+        }
+      }
 
       // 3. Resolve provision script path
       const homedir = process.env.HOME || "/root";
