@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
-import { getTelemetryPreferenceEnabled, setTelemetryPreferenceEnabled } from "../analytics.js";
 import { navigateToSession, navigateHome } from "../utils/routing.js";
 
 interface SettingsPageProps {
@@ -16,7 +15,6 @@ const CATEGORIES = [
   { id: "anthropic", label: "Anthropic" },
   { id: "ai-validation", label: "AI Validation" },
   { id: "updates", label: "Updates" },
-  { id: "telemetry", label: "Telemetry" },
   { id: "environments", label: "Environments" },
 ] as const;
 
@@ -50,7 +48,6 @@ export function SettingsPage({ embedded = false }: SettingsPageProps) {
   const [updatingApp, setUpdatingApp] = useState(false);
   const [updateStatus, setUpdateStatus] = useState("");
   const [updateError, setUpdateError] = useState("");
-  const [telemetryEnabled, setTelemetryEnabled] = useState(getTelemetryPreferenceEnabled());
   const [aiValidationEnabled, setAiValidationEnabled] = useState(false);
   const [aiValidationAutoApprove, setAiValidationAutoApprove] = useState(true);
   const [aiValidationAutoDeny, setAiValidationAutoDeny] = useState(false);
@@ -920,31 +917,6 @@ export function SettingsPage({ embedded = false }: SettingsPageProps) {
                     </p>
                   )}
                 </div>
-              </div>
-            </section>
-
-            {/* Telemetry */}
-            <section id="telemetry" ref={setSectionRef("telemetry")}>
-              <h2 className="text-sm font-semibold text-cc-fg mb-4">Telemetry</h2>
-              <div className="space-y-3">
-                <p className="text-xs text-cc-muted">
-                  Anonymous product analytics and crash reports via PostHog to improve reliability.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = !telemetryEnabled;
-                    setTelemetryPreferenceEnabled(next);
-                    setTelemetryEnabled(next);
-                  }}
-                  className="w-full flex items-center justify-between px-3 py-3 min-h-[44px] rounded-lg text-sm bg-cc-hover text-cc-fg hover:bg-cc-active transition-colors cursor-pointer"
-                >
-                  <span>Usage analytics and errors</span>
-                  <span className="text-xs text-cc-muted">{telemetryEnabled ? "On" : "Off"}</span>
-                </button>
-                <p className="text-xs text-cc-muted">
-                  Browser Do Not Track is respected automatically.
-                </p>
               </div>
             </section>
 

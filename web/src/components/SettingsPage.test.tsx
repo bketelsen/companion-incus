@@ -69,11 +69,6 @@ const mockApi = {
   verifyAnthropicKey: vi.fn(),
 };
 
-const mockTelemetry = {
-  getTelemetryPreferenceEnabled: vi.fn(),
-  setTelemetryPreferenceEnabled: vi.fn(),
-};
-
 vi.mock("../api.js", () => ({
   api: {
     getSettings: (...args: unknown[]) => mockApi.getSettings(...args),
@@ -85,11 +80,6 @@ vi.mock("../api.js", () => ({
     getAuthQr: (...args: unknown[]) => mockApi.getAuthQr(...args),
     verifyAnthropicKey: (...args: unknown[]) => mockApi.verifyAnthropicKey(...args),
   },
-}));
-
-vi.mock("../analytics.js", () => ({
-  getTelemetryPreferenceEnabled: (...args: unknown[]) => mockTelemetry.getTelemetryPreferenceEnabled(...args),
-  setTelemetryPreferenceEnabled: (...args: unknown[]) => mockTelemetry.setTelemetryPreferenceEnabled(...args),
 }));
 
 vi.mock("../store.js", () => {
@@ -145,7 +135,6 @@ beforeEach(() => {
       { label: "Tailscale", url: "http://100.118.112.23:3456", qrDataUrl: "data:image/png;base64,TS_QR" },
     ],
   });
-  mockTelemetry.getTelemetryPreferenceEnabled.mockReturnValue(true);
 });
 
 describe("SettingsPage", () => {
@@ -366,14 +355,6 @@ describe("SettingsPage", () => {
     expect(mockState.toggleDarkMode).toHaveBeenCalledTimes(1);
   });
 
-  it("toggles telemetry preference from settings", async () => {
-    render(<SettingsPage />);
-    await screen.findByText("Anthropic key configured");
-
-    fireEvent.click(screen.getByRole("button", { name: /Usage analytics and errors/i }));
-    expect(mockTelemetry.setTelemetryPreferenceEnabled).toHaveBeenCalledWith(false);
-  });
-
   it("navigates to environments page from settings", async () => {
     render(<SettingsPage />);
     await screen.findByText("Anthropic key configured");
@@ -472,7 +453,6 @@ describe("SettingsPage", () => {
     expect(document.getElementById("notifications")).toBeInTheDocument();
     expect(document.getElementById("anthropic")).toBeInTheDocument();
     expect(document.getElementById("updates")).toBeInTheDocument();
-    expect(document.getElementById("telemetry")).toBeInTheDocument();
     expect(document.getElementById("environments")).toBeInTheDocument();
   });
 
