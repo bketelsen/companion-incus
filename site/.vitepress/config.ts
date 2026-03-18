@@ -5,6 +5,15 @@ export default defineConfig({
   description: 'Multi-agent web UI for Claude Code & Codex, powered by Incus containers',
   base: '/companion-incus/',
 
+  ignoreDeadLinks: [
+    // localhost links are examples, not real links
+    /^http:\/\/localhost/,
+    // Pages created in later migration tasks
+    /\/guides\/incus-environments/,
+    /\/deploy\/cloud-vm/,
+    /\/reference\/troubleshooting/,
+  ],
+
   head: [
     ['link', { rel: 'icon', href: '/companion-incus/favicon.svg' }],
   ],
