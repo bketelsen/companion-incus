@@ -180,7 +180,7 @@ describe("IncusManager", () => {
       manager.execInContainer("companion-abc12345", ["sh", "-lc", "echo hello"]);
 
       expect(mockExecSync).toHaveBeenCalledWith(
-        "incus exec --user 1000 --group 1000 --env HOME=/home/code companion-abc12345 -- sh -lc 'echo hello'",
+        "incus exec --cwd /workspace --user 1000 --group 1000 --env HOME=/home/code companion-abc12345 -- sh -lc 'echo hello'",
         expect.objectContaining({ encoding: "utf-8" }),
       );
     });
@@ -211,6 +211,7 @@ describe("IncusManager", () => {
       });
       expect(cmd).toEqual([
         "incus", "exec",
+        "--cwd", "/workspace",
         "--user", "1000",
         "--group", "1000",
         "--env", "HOME=/home/code",
