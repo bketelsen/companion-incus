@@ -1,7 +1,7 @@
 # Companion Incus — Fork & Docker-to-Incus Migration Design
 
 **Date:** 2026-03-18
-**Status:** Draft
+**Status:** Review
 **Scope:** Fork The Companion, replace Docker with Incus as the sole container runtime
 
 ## Context
@@ -151,6 +151,7 @@ export interface IncusContainerInfo {
   portMappings: PortMapping[];
   hostCwd: string;
   containerCwd: string;       // always "/workspace"
+  hostWorkspaceDir: string;   // host temp dir mounted at /workspace, cleaned up on removal
   homeDir: string;            // resolved at creation, e.g. "/home/ubuntu"
   user: {                     // resolved at creation
     uid: number;              // e.g. 1000
@@ -246,6 +247,10 @@ export const incusManager: IncusManager;
 - `shift=true` on disk devices handles UID mapping transparently
 - No `validateContainerId` hex check — Incus names validated as alphanumeric + hyphens
 
+**Prerequisite: Incus agent.** The `incus exec --user/--group` flags require the Incus agent running inside the container. The systemd readiness check (step 7) implicitly validates this — if `systemctl is-system-running` succeeds via `incus exec`, the agent is operational.
+
+**Workspace cleanup:** `removeContainer()` deletes the host workspace temp dir (`hostWorkspaceDir`) after `incus delete --force`. Unlike Docker named volumes, this is a plain host directory that must be explicitly cleaned up.
+
 ### Exec — Unprivileged User Context
 
 All `execInContainer` calls run as the resolved unprivileged user:
@@ -282,14 +287,25 @@ private hostAddress: string | null = null;
 
 getHostAddress(): string {
   if (this.hostAddress) return this.hostAddress;
-  const ip = execSync("ip -4 addr show incusbr0 | grep -oP '(?<=inet\\\\s)\\\\d+(\\\\.\\\\d+){3}'")
-    .toString().trim();
-  this.hostAddress = ip;
-  return ip;
+  // Bridge name is configurable (default: incusbr0, LXD migrations may use lxdbr0)
+  const bridge = (process.env.COMPANION_INCUS_BRIDGE || "incusbr0").trim();
+  try {
+    const ip = execSync(`ip -4 addr show ${bridge} | grep -oP '(?<=inet )\\d+(\\.\\d+){3}'`)
+      .toString().trim();
+    this.hostAddress = ip;
+    return ip;
+  } catch {
+    // Fallback: ask a running container for the default gateway
+    // (used when bridge name is unknown or host networking differs)
+    throw new Error(
+      `Could not discover host address from bridge "${bridge}". ` +
+      `Set COMPANION_INCUS_BRIDGE or COMPANION_CONTAINER_SDK_HOST.`
+    );
+  }
 }
 ```
 
-Cached at first use. Replaces `host.docker.internal` / `COMPANION_CONTAINER_SDK_HOST`.
+Cached at first use. Bridge name configurable via `COMPANION_INCUS_BRIDGE` env var (defaults to `incusbr0`). Replaces `host.docker.internal` / `COMPANION_CONTAINER_SDK_HOST` (the latter is still supported as an explicit override).
 
 ### Workspace Copy
 
@@ -469,8 +485,21 @@ Full rewrite as described in Phase 2.
 
 - Import swap
 - `containerId` → `containerName` throughout
+- References `imagePullManager` → `imageProvisionManager`
 
-### 3.10 Files to Delete
+### 3.10 `web/server/terminal-manager.ts`
+
+- Import swap: `containerManager` → `incusManager`
+- Docker exec for terminal spawn → `incusManager.buildExecCommand()`
+
+### 3.11 `web/server/routes/env-routes.ts` and `web/server/routes/env-routes.test.ts`
+
+- Import swap
+- `containerManager.checkDocker()` → `incusManager.checkIncus()`
+- `containerManager.imageExists()` → `incusManager.imageExists()`
+- Docker-specific container status endpoint responses updated
+
+### 3.12 Files to Delete
 
 - `web/server/container-manager.ts`
 - `web/server/container-manager.test.ts`
@@ -482,7 +511,7 @@ Full rewrite as described in Phase 2.
 - `.github/workflows/docker.yml`
 - `.github/workflows/docker-server.yml`
 
-### 3.11 New Test Files
+### 3.13 New Test Files
 
 - `web/server/incus-manager.test.ts` — mock `execSync`, verify `incus` commands, port pre-allocation, user resolution, auth seeding with dynamic homeDir
 - `web/server/image-provision-manager.test.ts` — mock build flow, test state machine (idle → building → ready/error)
@@ -491,7 +520,7 @@ Full rewrite as described in Phase 2.
 
 ## Phase 4: Frontend Changes
 
-~120 Docker-specific references across ~29 files.
+~250 Docker-specific references across ~29 files.
 
 ### 4.1 Component Renames
 
@@ -573,12 +602,15 @@ All test files with Docker strings, `DockerUpdateDialog` references, or Docker s
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | **Incus image build takes 10-20 min** | Poor first-run UX | Streaming progress UI; image cached after first build; CLI `rebuild-image` command |
-| **Port pre-allocation races** | Two containers could grab the same port | Use OS-level port binding check in `findFreePort()`; retry on EADDRINUSE during proxy device creation |
+| **Port pre-allocation TOCTOU race** | Two containers could grab the same port between `findFreePort()` and `incus config device add` | Retry loop: if proxy device add fails with EADDRINUSE, call `findFreePort()` again (max 3 retries) |
 | **`incus exec` detached mode missing** | Codex WS launcher needs background exec | `nohup cmd &` wrapper inside bash; validated in Docker equivalent scenarios |
-| **Bridge IP discovery** | `incusbr0` may not exist on all setups | Fall back to `incus exec -- ip route show default`; support `COMPANION_CONTAINER_SDK_HOST` override (already exists) |
-| **Container startup latency** | Incus system containers slower than Docker's `sleep infinity` | Poll `systemctl is-system-running` with reasonable timeout (30s); skip cloud-init for published images |
+| **Bridge name varies** | `incusbr0` may not exist (LXD migrations use `lxdbr0`, custom setups use other names) | `COMPANION_INCUS_BRIDGE` env var (default `incusbr0`); `COMPANION_CONTAINER_SDK_HOST` override still supported |
+| **Container startup latency** | Incus system containers slower than Docker's `sleep infinity` | Poll `systemctl is-system-running` with reasonable timeout (30s); published images skip cloud-init |
+| **Incus agent not running** | `incus exec --user/--group` fails without agent | Systemd readiness check (step 7) implicitly validates agent is operational; timeout with clear error |
 | **UID 1000 may not exist on all images** | `getent passwd 1000` fails | Validate during container creation; fail with clear error suggesting image requirements |
 | **Provision script divergence** | User edits break image builds | `POST /api/incus/provision-script/reset` to restore bundled default; provision script version header |
+| **`shift=true` + readonly edge cases** | UID shifting on readonly disk devices may behave unexpectedly | Validate during implementation; fall back to non-shifted mount + explicit permission setup if needed |
+| **`createContainer` blocks event loop** | Multi-step Incus creation (launch + user resolve + devices + systemd wait) is slower than Docker | Consider making `createContainer` async in implementation if blocking exceeds ~5s; session creation is already async |
 
 ---
 
@@ -610,9 +642,11 @@ All test files with Docker strings, `DockerUpdateDialog` references, or Docker s
 - `web/server/cli-launcher.ts` — 3 exec sites + host address + types
 - `web/server/session-creation-service.ts` — full container flow
 - `web/server/session-git-info.ts` — docker exec → incusManager.execInContainer
-- `web/server/session-orchestrator.ts` — container lifecycle
+- `web/server/session-orchestrator.ts` — container lifecycle + imagePullManager → imageProvisionManager
+- `web/server/terminal-manager.ts` — docker exec for terminal spawn → incusManager.buildExecCommand
 - `web/server/routes.ts` — endpoint renames + new endpoints
 - `web/server/routes/sandbox-routes.ts` — container operations
+- `web/server/routes/env-routes.ts` — container status checks
 - `web/server/novnc-proxy.ts` — container lookup
 - `web/server/index.ts` — initialization
 
