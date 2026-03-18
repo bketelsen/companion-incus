@@ -1,16 +1,22 @@
 <p align="center">
-  <img src="screenshot.png" alt="The Companion" width="100%" />
+  <img src="screenshot.png" alt="Companion Incus" width="100%" />
 </p>
 
-<h1 align="center">The Companion</h1>
-<p align="center"><strong>Web UI for Claude Code and Codex sessions.</strong></p>
-<p align="center">Run multiple agents, inspect every tool call, and gate risky actions with explicit approvals.</p>
+<h1 align="center">Companion Incus</h1>
+<p align="center"><strong>Incus-powered web UI for Claude Code and Codex sessions.</strong></p>
+<p align="center">Run multiple agents in Incus containers, inspect every tool call, and gate risky actions with explicit approvals.</p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/the-companion"><img src="https://img.shields.io/npm/v/the-companion.svg" alt="npm version" /></a>
-  <a href="https://www.npmjs.com/package/the-companion"><img src="https://img.shields.io/npm/dm/the-companion.svg" alt="npm downloads" /></a>
+  <a href="https://www.npmjs.com/package/companion-incus"><img src="https://img.shields.io/npm/v/companion-incus.svg" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/companion-incus"><img src="https://img.shields.io/npm/dm/companion-incus.svg" alt="npm downloads" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License" /></a>
 </p>
+
+## Attribution
+
+Companion Incus is a fork of [The Companion](https://github.com/The-Vibe-Company/companion) by [The Vibe Company](https://github.com/The-Vibe-Company), originally created by Stan Girard. This fork replaces Docker with [Incus](https://linuxcontainers.org/incus/) as the container runtime for improved isolation and security.
+
+We're grateful to the original authors for building and open-sourcing The Companion under the MIT license. If you don't need Incus-specific features, we recommend using the upstream project.
 
 ## Quick start
 
@@ -19,7 +25,7 @@
 ### Try it instantly
 
 ```bash
-bunx the-companion
+bunx companion-incus
 ```
 
 Open [http://localhost:3456](http://localhost:3456).
@@ -27,13 +33,13 @@ Open [http://localhost:3456](http://localhost:3456).
 ### Install globally
 
 ```bash
-bun install -g the-companion
+bun install -g companion-incus
 
 # Register as a background service (launchd on macOS, systemd on Linux)
-the-companion install
+companion-incus install
 
 # Start the service
-the-companion start
+companion-incus start
 ```
 
 Open [http://localhost:3456](http://localhost:3456). The server runs in the background and survives reboots.
@@ -42,15 +48,15 @@ Open [http://localhost:3456](http://localhost:3456). The server runs in the back
 
 | Command | Description |
 |---|---|
-| `the-companion` | Start server in foreground (default) |
-| `the-companion serve` | Start server in foreground (explicit) |
-| `the-companion install` | Register as a background service (launchd/systemd) |
-| `the-companion start` | Start the background service |
-| `the-companion stop` | Stop the background service |
-| `the-companion restart` | Restart the background service |
-| `the-companion uninstall` | Remove the background service |
-| `the-companion status` | Show service status |
-| `the-companion logs` | Tail service log files |
+| `companion-incus` | Start server in foreground (default) |
+| `companion-incus serve` | Start server in foreground (explicit) |
+| `companion-incus install` | Register as a background service (launchd/systemd) |
+| `companion-incus start` | Start the background service |
+| `companion-incus stop` | Stop the background service |
+| `companion-incus restart` | Restart the background service |
+| `companion-incus uninstall` | Remove the background service |
+| `companion-incus status` | Show service status |
+| `companion-incus logs` | Tail service log files |
 
 **Options:** `--port <n>` overrides the default port (3456).
 
@@ -120,11 +126,11 @@ Every push to `main` publishes a preview artifact:
 
 | Artifact | Tag / dist-tag | Example |
 |---|---|---|
-| Docker image (moving) | `preview-main` | `docker.io/stangirard/the-companion:preview-main` |
-| Docker image (immutable) | `preview-<sha>` | `docker.io/stangirard/the-companion:preview-abc1234...` |
-| npm package | `next` | `bunx the-companion@next` |
+| npm package | `next` | `bunx companion-incus@next` |
 
 Preview builds use a patch-core bump (e.g. `0.68.1-preview.*` when stable is `0.68.0`) so the in-app update checker can detect them as semver-ahead of the current stable release. They are **not** production-stable — use `latest` / semver tags for stable releases.
+
+> **Note:** This fork does not publish Docker images. Containers are managed via Incus.
 
 ### Tracking prerelease updates in-app
 
