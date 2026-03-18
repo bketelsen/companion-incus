@@ -1,12 +1,15 @@
 {
-  "name": "the-companion",
+  "name": "companion-incus",
   "version": "0.92.4",
   "type": "module",
-  "description": "Web UI for launching and interacting with Claude Code agents",
+  "description": "Incus-powered web UI for Claude Code & Codex agents",
   "license": "MIT",
-  "author": "The Vibe Company",
+  "author": "Brian Ketelsen",
+  "contributors": [
+    "Stan Girard (The Vibe Company) — original The Companion project"
+  ],
   "bin": {
-    "the-companion": "./bin/cli.ts",
+    "companion-incus": "./bin/cli.ts",
     "companion": "./bin/cli.ts"
   },
   "files": [
@@ -23,7 +26,8 @@
     "ai",
     "agent",
     "web-ui",
-    "vibe-coding"
+    "incus",
+    "containers"
   ],
   "scripts": {
     "dev": "bun dev.ts",
