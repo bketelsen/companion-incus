@@ -9,7 +9,6 @@ export default defineConfig({
     // localhost links are examples, not real links
     /^http:\/\/localhost/,
     // Pages created in later migration tasks
-    /\/guides\/incus-environments/,
     /\/deploy\/cloud-vm/,
     /\/reference\/troubleshooting/,
   ],
