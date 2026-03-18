@@ -187,6 +187,9 @@ export class IncusManager {
   execInContainerAsync(name: string, cmd: string[], opts?: { timeout?: number; onOutput?: (line: string) => void }): Promise<{exitCode: number; output: string}>;
   buildExecCommand(name: string, opts: { env?: Record<string, string>; interactive?: boolean; cmd: string[] }): string[];
 
+  // Introspection
+  hasBinaryInContainer(name: string, binary: string): boolean;  // incus exec -- which <binary>
+
   // File transfer
   copyWorkspaceToContainer(name: string, hostCwd: string): Promise<void>;
 
@@ -468,38 +471,62 @@ Full rewrite as described in Phase 2.
 - `containerManager.checkDocker()` → `incusManager.checkIncus()`
 - Error: "Docker is not available" → "Incus is not available"
 
-### 3.7 `web/server/routes.ts` and `web/server/routes/env-routes.ts`
+### 3.7 `web/server/routes.ts`
 
-- Import swap
-- Endpoint renames:
-  - `POST /api/docker/build-base` → `POST /api/incus/build-image`
-  - `GET /api/docker/base-image` → `GET /api/incus/image-status`
+This is the **heaviest consumer** of `containerManager` with ~24 call sites across 5 functional areas:
+
+- **Container status endpoint** (~line 1230): `checkDocker()` → `checkIncus()`, `getDockerVersion()` → `getIncusVersion()`, `listImages()` → `listImages()`
+- **Code-server launch**: `hasBinaryInContainer()` check for `code-server`, `execInContainerAsync()` to start it
+- **Xvfb/noVNC startup**: `hasBinaryInContainer()` checks for `Xvfb` and `websockify`, `execInContainerAsync()` to start display server
+- **Browser preview**: `execInContainer()` for chromium launch inside container
+- **File operations**: `execInContainer()` for in-container file reads/writes
+
+All `containerManager.*` → `incusManager.*`. All `.containerId` → `.name`.
+
+Endpoint renames:
+- `POST /api/docker/build-base` → `POST /api/incus/build-image`
+- `GET /api/docker/base-image` → `GET /api/incus/image-status`
 - New endpoints: `/api/incus/provision-script` (GET/PUT), `/api/incus/provision-script/reset` (POST), `/api/incus/profiles` (GET)
 
-### 3.8 `web/server/novnc-proxy.ts`
+### 3.8 `web/server/routes/env-routes.ts`
+
+- Import swap
+- `containerManager.checkDocker()` → `incusManager.checkIncus()`
+- `containerManager.imageExists()` → `incusManager.imageExists()`
+
+### 3.9 `web/server/routes/system-routes.ts`
+
+- `dockerAutoUpdate` references → `autoRebuildImage`
+- `imagePullManager.pull("the-companion:latest")` → `imageProvisionManager.rebuild("companion-incus")`
+- `imagePullManager.waitForReady()` → `imageProvisionManager.waitForReady()`
+
+### 3.10 `web/server/settings-manager.ts`
+
+- `dockerAutoUpdate` field definition, default value, parsing, and patch logic → `autoRebuildImage`
+- This cascades into `web/server/routes/settings-routes.ts` which has ~8 references to `dockerAutoUpdate`
+
+### 3.11 `web/server/novnc-proxy.ts`
 
 - `containerManager.getContainer()` → `incusManager.getContainer()`
 - `.containerId` → `.name`
 
-### 3.9 `web/server/session-orchestrator.ts`
+### 3.12 `web/server/session-orchestrator.ts`
 
 - Import swap
 - `containerId` → `containerName` throughout
 - References `imagePullManager` → `imageProvisionManager`
 
-### 3.10 `web/server/terminal-manager.ts`
+### 3.13 `web/server/terminal-manager.ts`
 
 - Import swap: `containerManager` → `incusManager`
 - Docker exec for terminal spawn → `incusManager.buildExecCommand()`
 
-### 3.11 `web/server/routes/env-routes.ts` and `web/server/routes/env-routes.test.ts`
+### 3.14 `web/server/routes/env-routes.test.ts` and `web/server/routes/settings-routes.ts`
 
-- Import swap
-- `containerManager.checkDocker()` → `incusManager.checkIncus()`
-- `containerManager.imageExists()` → `incusManager.imageExists()`
-- Docker-specific container status endpoint responses updated
+- `env-routes.test.ts`: mock swap from `containerManager` to `incusManager`
+- `settings-routes.ts`: ~8 references to `dockerAutoUpdate` → `autoRebuildImage`
 
-### 3.12 Files to Delete
+### 3.15 Files to Delete
 
 - `web/server/container-manager.ts`
 - `web/server/container-manager.test.ts`
@@ -511,7 +538,7 @@ Full rewrite as described in Phase 2.
 - `.github/workflows/docker.yml`
 - `.github/workflows/docker-server.yml`
 
-### 3.13 New Test Files
+### 3.16 New Test Files
 
 - `web/server/incus-manager.test.ts` — mock `execSync`, verify `incus` commands, port pre-allocation, user resolution, auth seeding with dynamic homeDir
 - `web/server/image-provision-manager.test.ts` — mock build flow, test state machine (idle → building → ready/error)
@@ -644,9 +671,12 @@ All test files with Docker strings, `DockerUpdateDialog` references, or Docker s
 - `web/server/session-git-info.ts` — docker exec → incusManager.execInContainer
 - `web/server/session-orchestrator.ts` — container lifecycle + imagePullManager → imageProvisionManager
 - `web/server/terminal-manager.ts` — docker exec for terminal spawn → incusManager.buildExecCommand
-- `web/server/routes.ts` — endpoint renames + new endpoints
+- `web/server/routes.ts` — ~24 containerManager call sites across 5 functional areas + endpoint renames + new endpoints
 - `web/server/routes/sandbox-routes.ts` — container operations
 - `web/server/routes/env-routes.ts` — container status checks
+- `web/server/routes/system-routes.ts` — dockerAutoUpdate + imagePullManager → autoRebuildImage + imageProvisionManager
+- `web/server/routes/settings-routes.ts` — ~8 dockerAutoUpdate references
+- `web/server/settings-manager.ts` — dockerAutoUpdate field → autoRebuildImage
 - `web/server/novnc-proxy.ts` — container lookup
 - `web/server/index.ts` — initialization
 
