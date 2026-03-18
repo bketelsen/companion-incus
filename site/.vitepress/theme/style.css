@@ -1,0 +1,14 @@
+/* Brand color overrides — burnt orange accent */
+:root {
+  --vp-c-brand-1: #b74f2b;
+  --vp-c-brand-2: #a34425;
+  --vp-c-brand-3: #8f3a1f;
+  --vp-c-brand-soft: rgba(183, 79, 43, 0.14);
+}
+
+.dark {
+  --vp-c-brand-1: #d4734e;
+  --vp-c-brand-2: #c4623d;
+  --vp-c-brand-3: #b74f2b;
+  --vp-c-brand-soft: rgba(212, 115, 78, 0.14);
+}

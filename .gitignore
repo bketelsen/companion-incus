@@ -16,3 +16,5 @@ docs/repo-only/
 scripts/test-codex-*.ts
 web/dev-dist/
 .superpowers/
+site/.vitepress/dist/
+site/.vitepress/cache/
