@@ -662,6 +662,7 @@ export class IncusManager {
 
     const execArgs = [
       "incus", "exec",
+      "--cwd", "/workspace",
       "--user", String(uid),
       "--group", String(gid),
       "--env", `HOME=${homeDir}`,
@@ -689,6 +690,7 @@ export class IncusManager {
 
     const execArgs = [
       "incus", "exec",
+      "--cwd", "/workspace",
       "--user", String(uid),
       "--group", String(gid),
       "--env", `HOME=${homeDir}`,
@@ -780,6 +782,7 @@ export class IncusManager {
 
     const args: string[] = [
       "incus", "exec",
+      "--cwd", "/workspace",
       "--user", String(uid),
       "--group", String(gid),
       "--env", `HOME=${homeDir}`,
