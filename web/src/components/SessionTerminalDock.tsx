@@ -67,8 +67,8 @@ export function SessionTerminalDock({
     if (!currentSessionId) return null;
     return s.sdkSessions.find((sdk) => sdk.sessionId === currentSessionId) || null;
   });
-  const defaultNewTerminalOpts = sdkSession?.containerId
-    ? { target: "docker" as const, cwd: "/workspace", containerId: sdkSession.containerId }
+  const defaultNewTerminalOpts = sdkSession?.containerName
+    ? { target: "container" as const, cwd: "/workspace", containerName: sdkSession.containerName }
     : (cwd ? { target: "host" as const, cwd } : null);
 
   const hasPanel = currentSessionId === sessionId && quickTerminalOpen && quickTerminalTabs.length > 0;
@@ -157,7 +157,7 @@ export function SessionTerminalDock({
             <button
               onClick={() => defaultNewTerminalOpts && openQuickTerminal(defaultNewTerminalOpts)}
               className="px-2 py-1 rounded-md text-[11px] text-cc-muted hover:text-cc-fg hover:bg-cc-hover transition-colors cursor-pointer"
-              title={sdkSession?.containerId ? "Open terminal in session container" : "Open terminal on host machine"}
+              title={sdkSession?.containerName ? "Open terminal in container" : "Open terminal on host machine"}
             >
               + Terminal
             </button>
@@ -176,8 +176,8 @@ export function SessionTerminalDock({
           <div key={tab.id} className={activeQuickTerminalTabId === tab.id ? "h-full" : "hidden"}>
             <TerminalView
               cwd={tab.cwd}
-              containerId={tab.containerId}
-              title={tab.containerId ? `docker:${tab.cwd}` : tab.cwd}
+              containerName={tab.containerName}
+              title={tab.containerName ? `container:${tab.cwd}` : tab.cwd}
               embedded
               visible={activeQuickTerminalTabId === tab.id}
               hideHeader

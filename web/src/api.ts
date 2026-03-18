@@ -417,7 +417,7 @@ export interface AppSettings {
   aiValidationAutoDeny: boolean;
   publicUrl: string;
   updateChannel: "stable" | "prerelease";
-  dockerAutoUpdate: boolean;
+  autoRebuildImage: boolean;
 }
 
 export interface LinearConnectionSummary {
@@ -916,9 +916,9 @@ export const api = {
     ),
 
   buildBaseImage: () =>
-    post<{ ok: boolean; tag: string }>("/docker/build-base"),
+    post<{ ok: boolean; tag: string }>("/incus/build-image"),
   getBaseImageStatus: () =>
-    get<{ exists: boolean; tag: string }>("/docker/base-image"),
+    get<{ exists: boolean; tag: string }>("/incus/image-status"),
 
   // Settings
   getSettings: () => get<AppSettings>("/settings"),
@@ -938,7 +938,7 @@ export const api = {
     editorTabEnabled?: boolean;
     publicUrl?: string;
     updateChannel?: "stable" | "prerelease";
-    dockerAutoUpdate?: boolean;
+    autoRebuildImage?: boolean;
   }) => put<AppSettings>("/settings", data),
   verifyAnthropicKey: (apiKey: string) =>
     post<{ valid: boolean; error?: string }>("/settings/anthropic/verify", { apiKey }),
@@ -1141,8 +1141,8 @@ export const api = {
     get<UsageLimits>(`/sessions/${encodeURIComponent(sessionId)}/usage-limits`),
 
   // Terminal
-  spawnTerminal: (cwd: string, cols?: number, rows?: number, opts?: { containerId?: string }) =>
-    post<{ terminalId: string }>("/terminal/spawn", { cwd, cols, rows, containerId: opts?.containerId }),
+  spawnTerminal: (cwd: string, cols?: number, rows?: number, opts?: { containerName?: string }) =>
+    post<{ terminalId: string }>("/terminal/spawn", { cwd, cols, rows, containerName: opts?.containerName }),
   killTerminal: (terminalId: string) =>
     post<{ ok: boolean }>("/terminal/kill", { terminalId }),
   getTerminal: (terminalId?: string) =>

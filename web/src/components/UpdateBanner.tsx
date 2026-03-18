@@ -15,13 +15,13 @@ export function UpdateBanner() {
   const handleUpdate = async () => {
     setUpdating(true);
     try {
-      // Flag so the Docker image update dialog appears after restart
-      localStorage.setItem("companion_docker_prompt_pending", "1");
+      // Flag so the image update dialog appears after restart
+      localStorage.setItem("companion_image_rebuild_pending", "1");
       await api.triggerUpdate();
       // Show the full-screen updating overlay
       useStore.getState().setUpdateOverlayActive(true);
     } catch (err) {
-      localStorage.removeItem("companion_docker_prompt_pending");
+      localStorage.removeItem("companion_image_rebuild_pending");
       captureException(err);
       setUpdating(false);
     }

@@ -7,14 +7,14 @@
  * fallback that simply shows a message to use embedded mode.
  *
  * Each sandbox has a name and optional init script.
- * On mount the component loads sandboxes, checks Docker availability, and
+ * On mount the component loads sandboxes, checks Incus availability, and
  * checks the base image status.
  *
  * Coverage targets:
  * - Render test and axe accessibility scan
  * - Non-embedded fallback rendering
  * - Loading, empty, and populated list states
- * - Docker availability badges
+ * - Incus availability badges
  * - Create flow: toggle form, fill fields, submit, error handling
  * - Edit flow: open edit view, modify fields, save, cancel
  * - Delete flow: delete sandbox, error handling
@@ -72,7 +72,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers({ shouldAdvanceTime: true });
 
-  // Default: Docker available, base image ready, one sandbox, server cwd
+  // Default: Incus available, base image ready, one sandbox, server cwd
   mockListSandboxes.mockResolvedValue([makeSandbox()]);
   mockGetContainerStatus.mockResolvedValue({ available: true, version: "27.0.0" });
   mockGetImageStatus.mockResolvedValue({ image: "the-companion:latest", status: "ready", progress: [] });
@@ -110,30 +110,30 @@ describe("SandboxManager render & accessibility", () => {
   });
 });
 
-// ─── Docker Status Badge ───────────────────────────────────────
+// ─── Incus Status Badge ───────────────────────────────────────
 
-describe("SandboxManager Docker badge", () => {
-  it("shows Docker badge when Docker is available", async () => {
-    // The component shows a green "Docker" badge when the Docker daemon
+describe("SandboxManager Incus badge", () => {
+  it("shows Incus badge when Incus is available", async () => {
+    // The component shows a green "Incus" badge when the Incus daemon
     // is reachable.
     render(<SandboxManager embedded />);
-    await screen.findByText("Docker");
+    await screen.findByText("Incus");
   });
 
-  it("shows No Docker badge when Docker is unavailable", async () => {
+  it("shows No Incus badge when Incus is unavailable", async () => {
     // When getContainerStatus returns available: false, a yellow
-    // "No Docker" badge is rendered.
+    // "No Incus" badge is rendered.
     mockGetContainerStatus.mockResolvedValue({ available: false });
     render(<SandboxManager embedded />);
-    await screen.findByText("No Docker");
+    await screen.findByText("No Incus");
   });
 
-  it("shows No Docker badge when Docker check fails", async () => {
-    // If the Docker status API call rejects, the component falls back
-    // to treating Docker as unavailable.
+  it("shows No Incus badge when Incus check fails", async () => {
+    // If the Incus status API call rejects, the component falls back
+    // to treating Incus as unavailable.
     mockGetContainerStatus.mockRejectedValue(new Error("network error"));
     render(<SandboxManager embedded />);
-    await screen.findByText("No Docker");
+    await screen.findByText("No Incus");
   });
 });
 
@@ -455,9 +455,9 @@ describe("SandboxManager delete flow", () => {
 // ─── Test Init Script Flow ──────────────────────────────────────
 
 describe("SandboxManager test init script flow", () => {
-  it("shows Test Init Script button in edit mode when init script exists and Docker is available", async () => {
+  it("shows Test Init Script button in edit mode when init script exists and Incus is available", async () => {
     // The Test Init Script button should appear in the edit view when
-    // the sandbox has an init script and Docker is available.
+    // the sandbox has an init script and Incus is available.
     render(<SandboxManager embedded />);
     await screen.findByText("My Sandbox");
 
@@ -480,8 +480,8 @@ describe("SandboxManager test init script flow", () => {
     expect(screen.queryByRole("button", { name: /test init script/i })).not.toBeInTheDocument();
   });
 
-  it("does not show Test Init Script button when Docker is unavailable", async () => {
-    // When Docker is not available, the Test button should not appear
+  it("does not show Test Init Script button when Incus is unavailable", async () => {
+    // When Incus is not available, the Test button should not appear
     // even if the sandbox has an init script.
     mockGetContainerStatus.mockResolvedValue({ available: false });
     render(<SandboxManager embedded />);
@@ -489,8 +489,8 @@ describe("SandboxManager test init script flow", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
 
-    // Wait for Docker status to resolve
-    await screen.findByText("No Docker");
+    // Wait for Incus status to resolve
+    await screen.findByText("No Incus");
 
     expect(screen.queryByRole("button", { name: /test init script/i })).not.toBeInTheDocument();
   });
@@ -536,7 +536,7 @@ describe("SandboxManager test init script flow", () => {
   it("shows error result when test request throws", async () => {
     // When testInitScript rejects with an error, the component should
     // display the error message as a test failure.
-    mockTestInitScript.mockRejectedValue(new Error("Docker crashed"));
+    mockTestInitScript.mockRejectedValue(new Error("Incus crashed"));
     render(<SandboxManager embedded />);
     await screen.findByText("My Sandbox");
 
@@ -549,7 +549,7 @@ describe("SandboxManager test init script flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /test init script/i }));
 
     await screen.findByText(/Test failed/);
-    expect(screen.getByText("Docker crashed")).toBeInTheDocument();
+    expect(screen.getByText("Incus crashed")).toBeInTheDocument();
   });
 
   it("sends init script content directly without saving first", async () => {
@@ -628,14 +628,14 @@ describe("SandboxManager base image banner", () => {
     expect(screen.getByText("Network timeout")).toBeInTheDocument();
   });
 
-  it("does not show base image banner when Docker is unavailable", async () => {
-    // The base image banner is only relevant when Docker is available.
-    // When Docker is not available, the banner should not render.
+  it("does not show base image banner when Incus is unavailable", async () => {
+    // The base image banner is only relevant when Incus is available.
+    // When Incus is not available, the banner should not render.
     mockGetContainerStatus.mockResolvedValue({ available: false });
     render(<SandboxManager embedded />);
     await screen.findByText("Sandboxes");
-    // Wait for Docker status to resolve
-    await screen.findByText("No Docker");
+    // Wait for Incus status to resolve
+    await screen.findByText("No Incus");
     expect(screen.queryByText("Base Image")).not.toBeInTheDocument();
   });
 

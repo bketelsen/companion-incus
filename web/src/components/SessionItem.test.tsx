@@ -64,13 +64,13 @@ describe("SessionItem", () => {
     expect(screen.getByText("/workspace/app")).toBeInTheDocument();
   });
 
-  it("renders the Docker logo asset when session is containerized", () => {
-    // Regression guard for THE-195: keep using the transparent Docker logo asset.
+  it("renders the Incus logo asset when session is containerized", () => {
+    // Regression guard: keep using the transparent Incus logo asset.
     render(<SessionItem {...buildProps({ session: makeSession({ isContainerized: true }) })} />);
 
-    expect(screen.getByTitle("Docker")).toBeInTheDocument();
-    const dockerLogo = screen.getByAltText("Docker logo");
-    expect(dockerLogo).toHaveAttribute("src", "/logo-docker.svg");
+    expect(screen.getByTitle("Incus")).toBeInTheDocument();
+    const incusLogo = screen.getByAltText("Incus logo");
+    expect(incusLogo).toHaveAttribute("src", "/logo-incus.svg");
   });
 
   it("enters rename flow on double-click", () => {

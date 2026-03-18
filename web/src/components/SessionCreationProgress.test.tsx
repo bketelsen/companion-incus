@@ -24,7 +24,7 @@ describe("SessionCreationProgress", () => {
 
   it("shows spinner for in_progress steps (via animate-spin class)", () => {
     const steps: CreationProgressEvent[] = [
-      { step: "pulling_image", label: "Pulling Docker image...", status: "in_progress" },
+      { step: "pulling_image", label: "Building container image...", status: "in_progress" },
     ];
     const { container } = render(<SessionCreationProgress steps={steps} />);
     // The spinner element has the animate-spin class

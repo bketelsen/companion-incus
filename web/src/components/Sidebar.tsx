@@ -326,7 +326,7 @@ export function Sidebar() {
     e.stopPropagation();
     const sdkInfo = sdkSessions.find((s) => s.sessionId === sessionId);
     const bridgeState = sessions.get(sessionId);
-    const isContainerized = bridgeState?.is_containerized || !!sdkInfo?.containerId || false;
+    const isContainerized = bridgeState?.is_containerized || !!sdkInfo?.containerName || false;
 
     // Check if session has a linked non-done Linear issue
     const linkedIssue = linkedLinearIssues.get(sessionId);
@@ -430,7 +430,7 @@ export function Sidebar() {
       model: bridgeState?.model || sdkInfo?.model || "",
       cwd: bridgeState?.cwd || sdkInfo?.cwd || "",
       gitBranch: bridgeState?.git_branch || sdkInfo?.gitBranch || "",
-      isContainerized: bridgeState?.is_containerized || !!sdkInfo?.containerId || false,
+      isContainerized: bridgeState?.is_containerized || !!sdkInfo?.containerName || false,
       gitAhead: bridgeState?.git_ahead || sdkInfo?.gitAhead || 0,
       gitBehind: bridgeState?.git_behind || sdkInfo?.gitBehind || 0,
       linesAdded: bridgeState?.total_lines_added || sdkInfo?.totalLinesAdded || 0,
@@ -488,7 +488,7 @@ export function Sidebar() {
       <div className="p-3.5 pb-2">
         <div className="flex items-center gap-2.5">
           <img src={logoSrc} alt="" className="w-6 h-6" />
-          <span className="text-[13px] font-semibold text-cc-fg tracking-tight">The Companion</span>
+          <span className="text-[13px] font-semibold text-cc-fg tracking-tight">Companion Incus</span>
           <button
             onClick={handleNewSession}
             title="New Session"

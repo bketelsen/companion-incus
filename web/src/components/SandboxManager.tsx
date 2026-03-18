@@ -12,8 +12,8 @@ export function SandboxManager({ embedded = false }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  // Docker availability
-  const [dockerAvailable, setDockerAvailable] = useState<boolean | null>(null);
+  // Incus availability
+  const [incusAvailable, setIncusAvailable] = useState<boolean | null>(null);
 
   // Base image state
   const [baseImageState, setBaseImageState] = useState<ImagePullState | null>(null);
@@ -41,12 +41,12 @@ export function SandboxManager({ embedded = false }: Props) {
     api.listSandboxes().then(setSandboxes).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  // On mount: load sandboxes, check Docker, check base image, get server cwd
+  // On mount: load sandboxes, check Incus, check base image, get server cwd
   useEffect(() => {
     refresh();
     api.getContainerStatus()
-      .then((s) => setDockerAvailable(s.available))
-      .catch(() => setDockerAvailable(false));
+      .then((s) => setIncusAvailable(s.available))
+      .catch(() => setIncusAvailable(false));
     api.getImageStatus("the-companion:latest")
       .then((state) => setBaseImageState(state))
       .catch(() => {});
@@ -178,21 +178,21 @@ export function SandboxManager({ embedded = false }: Props) {
     }
   }
 
-  const dockerBadge =
-    dockerAvailable === null ? null : dockerAvailable ? (
+  const incusBadge =
+    incusAvailable === null ? null : incusAvailable ? (
       <span className="text-[10px] px-2 py-1 rounded-md bg-green-500/10 text-green-500 font-medium">
-        Docker
+        Incus
       </span>
     ) : (
       <span className="text-[10px] px-2 py-1 rounded-md bg-amber-500/10 text-amber-500 font-medium">
-        No Docker
+        No Incus
       </span>
     );
 
   /* ─── Base image status banner ───────────────────────────────────── */
 
   function renderBaseImageBanner() {
-    if (!dockerAvailable) return null;
+    if (!incusAvailable) return null;
 
     const isPulling = baseImageState?.status === "pulling";
 
@@ -265,7 +265,7 @@ export function SandboxManager({ embedded = false }: Props) {
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {dockerBadge}
+              {incusBadge}
             </div>
           </div>
 
@@ -413,7 +413,7 @@ export function SandboxManager({ embedded = false }: Props) {
                       )}
 
                       <div className="flex justify-end gap-2">
-                        {editInitScript.trim() && dockerAvailable && (
+                        {editInitScript.trim() && incusAvailable && (
                           <button
                             onClick={() => void handleTestInitScript(sandbox.slug)}
                             disabled={testingSlug === sandbox.slug || !serverCwd}

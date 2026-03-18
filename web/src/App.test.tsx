@@ -46,7 +46,7 @@ const { mockStoreState, mockGetState } = vi.hoisted(() => {
     setTaskPanelOpen: vi.fn(),
     clearCreation: vi.fn(),
     setUpdateInfo: vi.fn(),
-    setDockerUpdateDialogOpen: vi.fn(),
+    setImageUpdateDialogOpen: vi.fn(),
   };
   mockGetState.mockReturnValue(mockStoreState);
   return { mockStoreState, mockGetState };
@@ -142,8 +142,8 @@ vi.mock("./components/UpdateOverlay.js", () => ({
   ),
 }));
 
-vi.mock("./components/DockerUpdateDialog.js", () => ({
-  DockerUpdateDialog: () => <div data-testid="docker-update-dialog">DockerUpdateDialog</div>,
+vi.mock("./components/ImageUpdateDialog.js", () => ({
+  ImageUpdateDialog: () => <div data-testid="image-update-dialog">ImageUpdateDialog</div>,
 }));
 
 // Lazy-loaded pages: mock each module so dynamic import() resolves immediately
@@ -226,12 +226,12 @@ beforeEach(() => {
     setTaskPanelOpen: vi.fn(),
     clearCreation: vi.fn(),
     setUpdateInfo: vi.fn(),
-    setDockerUpdateDialogOpen: vi.fn(),
+    setImageUpdateDialogOpen: vi.fn(),
   });
   mockGetState.mockReturnValue(mockStoreState);
   (parseHash as ReturnType<typeof vi.fn>).mockReturnValue({ page: "home" });
   window.location.hash = "";
-  localStorage.removeItem("companion_docker_prompt_pending");
+  localStorage.removeItem("companion_image_rebuild_pending");
 });
 
 // ─── Tests ───────────────────────────────────────────────────────
@@ -416,24 +416,24 @@ describe("App", () => {
     });
   });
 
-  describe("docker update dialog activation", () => {
-    it("opens DockerUpdateDialog and clears localStorage when companion_docker_prompt_pending is set", () => {
-      // After an app update, the localStorage flag triggers the Docker update dialog.
+  describe("image update dialog activation", () => {
+    it("opens ImageUpdateDialog and clears localStorage when companion_image_rebuild_pending is set", () => {
+      // After an app update, the localStorage flag triggers the image update dialog.
       // This useEffect reads the flag, removes it, and opens the dialog via the store.
-      localStorage.setItem("companion_docker_prompt_pending", "1");
+      localStorage.setItem("companion_image_rebuild_pending", "1");
       setStoreValues({ isAuthenticated: true });
       render(<App />);
 
-      expect(mockStoreState.setDockerUpdateDialogOpen).toHaveBeenCalledWith(true);
-      expect(localStorage.getItem("companion_docker_prompt_pending")).toBeNull();
+      expect(mockStoreState.setImageUpdateDialogOpen).toHaveBeenCalledWith(true);
+      expect(localStorage.getItem("companion_image_rebuild_pending")).toBeNull();
     });
 
-    it("does not open DockerUpdateDialog on normal page load", () => {
-      // Without the localStorage flag, the dialog should not be triggered.
+    it("does not open ImageUpdateDialog on normal page load", () => {
+      // Without the localStorage flag, the image update dialog should not be triggered.
       setStoreValues({ isAuthenticated: true });
       render(<App />);
 
-      expect(mockStoreState.setDockerUpdateDialogOpen).not.toHaveBeenCalled();
+      expect(mockStoreState.setImageUpdateDialogOpen).not.toHaveBeenCalled();
     });
   });
 

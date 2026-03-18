@@ -238,17 +238,17 @@ describe("Sidebar", () => {
 
   it("session items show container badge when is_containerized is true", () => {
     const session = makeSession("s1", { git_branch: "feature/docker", is_containerized: true });
-    const sdk = makeSdkSession("s1", { containerId: "abc123" });
+    const sdk = makeSdkSession("s1", { containerName: "abc123" });
     mockState = createMockState({
       sessions: new Map([["s1", session]]),
       sdkSessions: [sdk],
     });
 
     render(<Sidebar />);
-    const badge = screen.getByTitle("Docker");
+    const badge = screen.getByTitle("Incus");
     expect(badge).toBeInTheDocument();
-    const dockerLogo = badge.querySelector('img[src="/logo-docker.svg"]');
-    expect(dockerLogo).toBeInTheDocument();
+    const incusLogo = badge.querySelector('img[src="/logo-incus.svg"]');
+    expect(incusLogo).toBeInTheDocument();
   });
 
   it("session items do not show git stats (removed in redesign)", () => {
@@ -1202,7 +1202,7 @@ describe("Sidebar", () => {
     // Verifies that archiving a containerized session triggers the container
     // archive confirmation panel warning about uncommitted changes.
     const session = makeSession("s1", { is_containerized: true });
-    const sdk = makeSdkSession("s1", { containerId: "abc123" });
+    const sdk = makeSdkSession("s1", { containerName: "abc123" });
     mockState = createMockState({
       sessions: new Map([["s1", session]]),
       sdkSessions: [sdk],
@@ -1223,7 +1223,7 @@ describe("Sidebar", () => {
     // Verifies that confirming the container archive sends force:true to the API
     // which bypasses the container check.
     const session = makeSession("s1", { is_containerized: true });
-    const sdk = makeSdkSession("s1", { containerId: "abc123" });
+    const sdk = makeSdkSession("s1", { containerName: "abc123" });
     mockState = createMockState({
       sessions: new Map([["s1", session]]),
       sdkSessions: [sdk],
@@ -1253,7 +1253,7 @@ describe("Sidebar", () => {
     // Verifies that clicking Cancel in the container archive confirmation
     // dismisses the warning without archiving.
     const session = makeSession("s1", { is_containerized: true });
-    const sdk = makeSdkSession("s1", { containerId: "abc123" });
+    const sdk = makeSdkSession("s1", { containerName: "abc123" });
     mockState = createMockState({
       sessions: new Map([["s1", session]]),
       sdkSessions: [sdk],

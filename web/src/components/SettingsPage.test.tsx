@@ -995,11 +995,11 @@ describe("SettingsPage", () => {
     expect(mockApi.updateSettings).not.toHaveBeenCalled();
   });
 
-  // ─── Docker Auto-Update toggle tests ──────────────────────────────────
+  // ─── Auto-Rebuild Image toggle tests ──────────────────────────────────
 
-  // The Docker auto-update toggle renders in the Updates section and calls
-  // updateSettings with dockerAutoUpdate when clicked.
-  it("toggles dockerAutoUpdate and calls updateSettings", async () => {
+  // The auto-rebuild image toggle renders in the Updates section and calls
+  // updateSettings with autoRebuildImage when clicked.
+  it("toggles autoRebuildImage and calls updateSettings", async () => {
     mockApi.getSettings.mockResolvedValueOnce({
       anthropicApiKeyConfigured: true,
       anthropicModel: "claude-sonnet-4-6",
@@ -1008,7 +1008,7 @@ describe("SettingsPage", () => {
       linearAutoTransitionStateName: "",
       editorTabEnabled: false,
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
     });
 
     render(<SettingsPage />);
@@ -1022,13 +1022,13 @@ describe("SettingsPage", () => {
     fireEvent.click(toggle);
 
     await waitFor(() => {
-      expect(mockApi.updateSettings).toHaveBeenCalledWith({ dockerAutoUpdate: true });
+      expect(mockApi.updateSettings).toHaveBeenCalledWith({ autoRebuildImage: true });
     });
   });
 
-  // When the API call for dockerAutoUpdate fails, the toggle should revert
+  // When the API call for autoRebuildImage fails, the toggle should revert
   // to its previous value (optimistic update rollback).
-  it("reverts dockerAutoUpdate toggle on API failure", async () => {
+  it("reverts autoRebuildImage toggle on API failure", async () => {
     mockApi.getSettings.mockResolvedValueOnce({
       anthropicApiKeyConfigured: true,
       anthropicModel: "claude-sonnet-4-6",
@@ -1037,7 +1037,7 @@ describe("SettingsPage", () => {
       linearAutoTransitionStateName: "",
       editorTabEnabled: false,
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
     });
     mockApi.updateSettings.mockRejectedValueOnce(new Error("network error"));
 
@@ -1056,9 +1056,9 @@ describe("SettingsPage", () => {
     });
   });
 
-  // When settings load with dockerAutoUpdate: true, the toggle should
+  // When settings load with autoRebuildImage: true, the toggle should
   // reflect the enabled state.
-  it("shows dockerAutoUpdate as enabled when loaded from settings", async () => {
+  it("shows autoRebuildImage as enabled when loaded from settings", async () => {
     mockApi.getSettings.mockResolvedValueOnce({
       anthropicApiKeyConfigured: true,
       anthropicModel: "claude-sonnet-4-6",
@@ -1067,7 +1067,7 @@ describe("SettingsPage", () => {
       linearAutoTransitionStateName: "",
       editorTabEnabled: false,
       updateChannel: "stable",
-      dockerAutoUpdate: true,
+      autoRebuildImage: true,
     });
 
     render(<SettingsPage />);

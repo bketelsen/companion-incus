@@ -44,7 +44,7 @@ describe("parseHash", () => {
     expect(parseHash("#/environments")).toEqual({ page: "environments" });
   });
 
-  it("parses docker-builder route as home (removed)", () => {
+  it("parses docker-builder route as home (legacy removed route)", () => {
     // docker-builder route was removed; unknown routes map to home
     expect(parseHash("#/docker-builder")).toEqual({ page: "home" });
   });

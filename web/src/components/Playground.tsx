@@ -43,7 +43,7 @@ import { LinearLogo } from "./LinearLogo.js";
 import { SessionCreationProgress } from "./SessionCreationProgress.js";
 import { SessionLaunchOverlay } from "./SessionLaunchOverlay.js";
 import { PlaygroundUpdateOverlay } from "./UpdateOverlay.js";
-import { PlaygroundDockerUpdateDialog } from "./DockerUpdateDialog.js";
+import { PlaygroundImageUpdateDialog } from "./ImageUpdateDialog.js";
 import { SessionItem } from "./SessionItem.js";
 import type { CreationProgressEvent } from "../types.js";
 import type { SessionItem as SessionItemType } from "../utils/project-grouping.js";
@@ -2348,7 +2348,7 @@ export function Playground() {
                     },
                     {
                       step: "pulling_image",
-                      label: "Pulling Docker image...",
+                      label: "Building container image...",
                       status: "done",
                     },
                     {
@@ -2409,12 +2409,12 @@ export function Playground() {
                     },
                     {
                       step: "pulling_image",
-                      label: "Pulling Docker image...",
+                      label: "Building container image...",
                       status: "error",
                     },
                   ] satisfies CreationProgressEvent[]
                 }
-                error="Failed to pull docker.io/stangirard/the-companion:latest — connection timed out after 30s"
+                error="Failed to build container image — connection timed out after 30s"
               />
             </Card>
             <Card label="With streaming init script logs">
@@ -2457,7 +2457,7 @@ export function Playground() {
                     },
                     {
                       step: "pulling_image",
-                      label: "Pulling Docker image...",
+                      label: "Building container image...",
                       status: "in_progress",
                       detail: "Downloading layer 3/7 [=====>    ] 45%",
                     },
@@ -2476,7 +2476,7 @@ export function Playground() {
                     },
                     {
                       step: "pulling_image",
-                      label: "Pulling Docker image...",
+                      label: "Building container image...",
                       status: "done",
                     },
                     {
@@ -2516,7 +2516,7 @@ export function Playground() {
                       },
                       {
                         step: "pulling_image",
-                        label: "Pulling Docker image...",
+                        label: "Building container image...",
                         status: "done",
                       },
                       {
@@ -2579,12 +2579,12 @@ export function Playground() {
                       },
                       {
                         step: "pulling_image",
-                        label: "Pulling Docker image...",
+                        label: "Building container image...",
                         status: "error",
                       },
                     ] satisfies CreationProgressEvent[]
                   }
-                  error="Failed to pull docker.io/stangirard/the-companion:latest — connection timed out after 30s"
+                  error="Failed to build container image — connection timed out after 30s"
                   backend="claude"
                   onCancel={() => {}}
                 />
@@ -2642,23 +2642,23 @@ export function Playground() {
             </Card>
           </div>
         </Section>
-        {/* ─── Docker Update Dialog ─────────────────────────── */}
+        {/* ─── Image Update Dialog ─────────────────────────── */}
         <Section
-          title="Docker Update Dialog"
-          description="Post-update dialog asking whether to also update the sandbox Docker image"
+          title="Image Update Dialog"
+          description="Post-update dialog asking whether to also rebuild the sandbox container image"
         >
           <div className="space-y-4">
             <Card label="Prompt phase">
-              <PlaygroundDockerUpdateDialog phase="prompt" />
+              <PlaygroundImageUpdateDialog phase="prompt" />
             </Card>
             <Card label="Pulling phase">
-              <PlaygroundDockerUpdateDialog phase="pulling" />
+              <PlaygroundImageUpdateDialog phase="pulling" />
             </Card>
             <Card label="Done phase">
-              <PlaygroundDockerUpdateDialog phase="done" />
+              <PlaygroundImageUpdateDialog phase="done" />
             </Card>
             <Card label="Error phase">
-              <PlaygroundDockerUpdateDialog phase="error" />
+              <PlaygroundImageUpdateDialog phase="error" />
             </Card>
           </div>
         </Section>
@@ -2679,7 +2679,7 @@ export function Playground() {
         {/* ─── Session Items ──────────────────────────────────── */}
         <Section
           title="Session Items"
-          description="Sidebar session rows — status dot, backend badge, Docker indicator, archive on hover"
+          description="Sidebar session rows — status dot, backend badge, Incus indicator, archive on hover"
         >
           <PlaygroundSessionItems />
         </Section>
@@ -2879,8 +2879,8 @@ function PlaygroundSessionItems() {
         </div>
       </Card>
 
-      {/* Running — Codex + Docker */}
-      <Card label="Running — Codex + Docker">
+      {/* Running — Codex + Incus */}
+      <Card label="Running — Codex + Incus">
         <div className="bg-cc-sidebar rounded-lg p-1">
           <SessionItem
             session={mockSession({
@@ -3044,7 +3044,7 @@ function Card({
 function PlaygroundTerminalTabsMock() {
   const tabs = [
     { id: "host", label: "Terminal", cwd: "/Users/demo/project" },
-    { id: "docker", label: "Docker", cwd: "/workspace" },
+    { id: "container", label: "Container", cwd: "/workspace" },
   ];
   const [active, setActive] = useState("host");
   const [placement, setPlacement] = useState<

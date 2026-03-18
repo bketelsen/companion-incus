@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Tests for DockerUpdateDialog component.
+ * Tests for ImageUpdateDialog component.
  *
  * Validates:
  * - Render gating: dialog hidden when store flag is false
@@ -8,7 +8,7 @@
  * - Accessibility: axe scan on the dialog
  * - Skip button: closes the dialog
  * - Update button: transitions to pulling phase and calls pullImage API
- * - Toggle: persists dockerAutoUpdate setting
+ * - Toggle: persists autoRebuildImage setting
  * - Done button: closes dialog after successful pull
  * - Error phase: shows error state with retry option
  * - Playground previews: render all four phases
@@ -20,14 +20,14 @@ import { useStore } from "../store.js";
 // Mock the api module
 vi.mock("../api.js", () => ({
   api: {
-    getSettings: vi.fn().mockResolvedValue({ dockerAutoUpdate: false }),
+    getSettings: vi.fn().mockResolvedValue({ autoRebuildImage: false }),
     updateSettings: vi.fn().mockResolvedValue({}),
     pullImage: vi.fn().mockResolvedValue({ ok: true, state: { image: "the-companion:latest", status: "pulling", progress: [] } }),
     getImageStatus: vi.fn().mockResolvedValue({ image: "the-companion:latest", status: "pulling", progress: ["Pulling layer 1..."] }),
   },
 }));
 
-import { DockerUpdateDialog, PlaygroundDockerUpdateDialog } from "./DockerUpdateDialog.js";
+import { ImageUpdateDialog, PlaygroundImageUpdateDialog } from "./ImageUpdateDialog.js";
 import { api } from "../api.js";
 
 const mockedApi = api as unknown as {
@@ -41,39 +41,39 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
   // Reset dialog state
-  useStore.getState().setDockerUpdateDialogOpen(false);
+  useStore.getState().setImageUpdateDialogOpen(false);
 });
 
 afterEach(() => {
   vi.useRealTimers();
 });
 
-// ─── DockerUpdateDialog ──────────────────────────────────────────────
+// ─── ImageUpdateDialog ──────────────────────────────────────────────
 
-describe("DockerUpdateDialog", () => {
+describe("ImageUpdateDialog", () => {
   it("renders nothing when dialog is not open", () => {
     // Dialog should not render when store flag is false
-    const { container } = render(<DockerUpdateDialog />);
+    const { container } = render(<ImageUpdateDialog />);
     expect(container.innerHTML).toBe("");
   });
 
   it("renders the prompt phase when dialog is open", async () => {
-    // Opening the dialog should show the prompt asking about Docker update
-    useStore.getState().setDockerUpdateDialogOpen(true);
+    // Opening the dialog should show the prompt asking about image update
+    useStore.getState().setImageUpdateDialogOpen(true);
 
-    render(<DockerUpdateDialog />);
+    render(<ImageUpdateDialog />);
 
     // Wait for settings to load
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10);
     });
 
-    expect(screen.getByTestId("docker-update-dialog")).toBeTruthy();
+    expect(screen.getByTestId("image-update-dialog")).toBeTruthy();
     expect(screen.getByText("Update Sandbox Image?")).toBeTruthy();
     expect(screen.getByText(/Would you like to also/)).toBeTruthy();
     expect(screen.getByText("Skip")).toBeTruthy();
     expect(screen.getByText("Update")).toBeTruthy();
-    expect(screen.getByText("Always update Docker image automatically")).toBeTruthy();
+    expect(screen.getByText("Auto-rebuild container image")).toBeTruthy();
   });
 
   it("passes axe accessibility scan", async () => {
@@ -81,9 +81,9 @@ describe("DockerUpdateDialog", () => {
     // axe-core needs real timers to run its analysis.
     vi.useRealTimers();
     const { axe } = await import("vitest-axe");
-    useStore.getState().setDockerUpdateDialogOpen(true);
+    useStore.getState().setImageUpdateDialogOpen(true);
 
-    const { container } = render(<DockerUpdateDialog />);
+    const { container } = render(<ImageUpdateDialog />);
 
     // Wait for the settings fetch to resolve
     await act(async () => {
@@ -97,9 +97,9 @@ describe("DockerUpdateDialog", () => {
 
   it("closes the dialog when Skip is clicked", async () => {
     // Skip should close the dialog without triggering any update
-    useStore.getState().setDockerUpdateDialogOpen(true);
+    useStore.getState().setImageUpdateDialogOpen(true);
 
-    render(<DockerUpdateDialog />);
+    render(<ImageUpdateDialog />);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10);
@@ -107,15 +107,15 @@ describe("DockerUpdateDialog", () => {
 
     fireEvent.click(screen.getByText("Skip"));
 
-    expect(useStore.getState().dockerUpdateDialogOpen).toBe(false);
+    expect(useStore.getState().imageUpdateDialogOpen).toBe(false);
     expect(mockedApi.pullImage).not.toHaveBeenCalled();
   });
 
   it("triggers image pull when Update is clicked", async () => {
     // Update button should call pullImage and transition to pulling phase
-    useStore.getState().setDockerUpdateDialogOpen(true);
+    useStore.getState().setImageUpdateDialogOpen(true);
 
-    render(<DockerUpdateDialog />);
+    render(<ImageUpdateDialog />);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10);
@@ -131,30 +131,30 @@ describe("DockerUpdateDialog", () => {
   });
 
   it("toggles the always-update setting", async () => {
-    // Clicking the toggle should save the dockerAutoUpdate setting
-    useStore.getState().setDockerUpdateDialogOpen(true);
+    // Clicking the toggle should save the autoRebuildImage setting
+    useStore.getState().setImageUpdateDialogOpen(true);
 
-    render(<DockerUpdateDialog />);
+    render(<ImageUpdateDialog />);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10);
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByText("Always update Docker image automatically"));
+      fireEvent.click(screen.getByText("Auto-rebuild container image"));
       await vi.advanceTimersByTimeAsync(10);
     });
 
-    expect(mockedApi.updateSettings).toHaveBeenCalledWith({ dockerAutoUpdate: true });
+    expect(mockedApi.updateSettings).toHaveBeenCalledWith({ autoRebuildImage: true });
   });
 
-  it("auto-triggers pull when dockerAutoUpdate is already enabled", async () => {
-    // When dockerAutoUpdate is true, the dialog should skip the prompt
+  it("auto-triggers pull when autoRebuildImage is already enabled", async () => {
+    // When autoRebuildImage is true, the dialog should skip the prompt
     // and go straight to the pulling phase
-    mockedApi.getSettings.mockResolvedValue({ dockerAutoUpdate: true });
-    useStore.getState().setDockerUpdateDialogOpen(true);
+    mockedApi.getSettings.mockResolvedValue({ autoRebuildImage: true });
+    useStore.getState().setImageUpdateDialogOpen(true);
 
-    render(<DockerUpdateDialog />);
+    render(<ImageUpdateDialog />);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10);
@@ -167,15 +167,15 @@ describe("DockerUpdateDialog", () => {
 
   it("shows done phase when pull completes successfully", async () => {
     // After a successful pull, dialog should show the success state
-    mockedApi.getSettings.mockResolvedValue({ dockerAutoUpdate: false });
+    mockedApi.getSettings.mockResolvedValue({ autoRebuildImage: false });
     mockedApi.getImageStatus.mockResolvedValue({
       image: "the-companion:latest",
       status: "ready",
       progress: ["Done"],
     });
-    useStore.getState().setDockerUpdateDialogOpen(true);
+    useStore.getState().setImageUpdateDialogOpen(true);
 
-    render(<DockerUpdateDialog />);
+    render(<ImageUpdateDialog />);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10);
@@ -198,16 +198,16 @@ describe("DockerUpdateDialog", () => {
 
   it("shows error phase when pull fails", async () => {
     // Error state should be shown with a retry option
-    mockedApi.getSettings.mockResolvedValue({ dockerAutoUpdate: false });
+    mockedApi.getSettings.mockResolvedValue({ autoRebuildImage: false });
     mockedApi.getImageStatus.mockResolvedValue({
       image: "the-companion:latest",
       status: "error",
       progress: ["Layer 1 failed"],
       error: "Network timeout",
     });
-    useStore.getState().setDockerUpdateDialogOpen(true);
+    useStore.getState().setImageUpdateDialogOpen(true);
 
-    render(<DockerUpdateDialog />);
+    render(<ImageUpdateDialog />);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10);
@@ -232,15 +232,15 @@ describe("DockerUpdateDialog", () => {
 
   it("closes dialog when Done is clicked after successful pull", async () => {
     // Done button in the success state should close the dialog
-    mockedApi.getSettings.mockResolvedValue({ dockerAutoUpdate: false });
+    mockedApi.getSettings.mockResolvedValue({ autoRebuildImage: false });
     mockedApi.getImageStatus.mockResolvedValue({
       image: "the-companion:latest",
       status: "ready",
       progress: [],
     });
-    useStore.getState().setDockerUpdateDialogOpen(true);
+    useStore.getState().setImageUpdateDialogOpen(true);
 
-    render(<DockerUpdateDialog />);
+    render(<ImageUpdateDialog />);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10);
@@ -259,30 +259,30 @@ describe("DockerUpdateDialog", () => {
 
     fireEvent.click(screen.getByText("Done"));
 
-    expect(useStore.getState().dockerUpdateDialogOpen).toBe(false);
+    expect(useStore.getState().imageUpdateDialogOpen).toBe(false);
   });
 });
 
-// ─── PlaygroundDockerUpdateDialog ─────────────────────────────────
+// ─── PlaygroundImageUpdateDialog ─────────────────────────────────
 
-describe("PlaygroundDockerUpdateDialog", () => {
+describe("PlaygroundImageUpdateDialog", () => {
   it("renders prompt phase preview", () => {
-    render(<PlaygroundDockerUpdateDialog phase="prompt" />);
+    render(<PlaygroundImageUpdateDialog phase="prompt" />);
     expect(screen.getByText("Update Sandbox Image?")).toBeTruthy();
   });
 
   it("renders pulling phase preview", () => {
-    render(<PlaygroundDockerUpdateDialog phase="pulling" />);
+    render(<PlaygroundImageUpdateDialog phase="pulling" />);
     expect(screen.getByText("Updating Sandbox Image...")).toBeTruthy();
   });
 
   it("renders done phase preview", () => {
-    render(<PlaygroundDockerUpdateDialog phase="done" />);
+    render(<PlaygroundImageUpdateDialog phase="done" />);
     expect(screen.getByText("Sandbox Image Updated")).toBeTruthy();
   });
 
   it("renders error phase preview", () => {
-    render(<PlaygroundDockerUpdateDialog phase="error" />);
+    render(<PlaygroundImageUpdateDialog phase="error" />);
     expect(screen.getByText("Image Update Failed")).toBeTruthy();
   });
 });

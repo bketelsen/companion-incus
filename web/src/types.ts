@@ -87,7 +87,7 @@ export interface SdkSessionInfo {
   cwd: string;
   createdAt: number;
   archived?: boolean;
-  containerId?: string;
+  containerName?: string;
   containerName?: string;
   containerImage?: string;
   name?: string;

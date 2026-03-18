@@ -5,26 +5,26 @@ import { useStore } from "../store.js";
 type DialogPhase = "prompt" | "pulling" | "done" | "error";
 
 /**
- * DockerUpdateDialog — shown after an app update completes to ask the user
- * whether they also want to re-pull the sandbox Docker image.
- * Includes a toggle to persist the "always update" preference (dockerAutoUpdate).
+ * ImageUpdateDialog — shown after an app update completes to ask the user
+ * whether they also want to rebuild the sandbox container image.
+ * Includes a toggle to persist the "always rebuild" preference (autoRebuildImage).
  */
-export function DockerUpdateDialog() {
-  const open = useStore((s) => s.dockerUpdateDialogOpen);
-  const setOpen = useStore((s) => s.setDockerUpdateDialogOpen);
+export function ImageUpdateDialog() {
+  const open = useStore((s) => s.imageUpdateDialogOpen);
+  const setOpen = useStore((s) => s.setImageUpdateDialogOpen);
   const [phase, setPhase] = useState<DialogPhase>("prompt");
   const [alwaysUpdate, setAlwaysUpdate] = useState(false);
   const [pullState, setPullState] = useState<ImagePullState | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Load the current dockerAutoUpdate setting on open.
+  // Load the current autoRebuildImage setting on open.
   // If the user has opted into auto-updates, skip the prompt and start pulling immediately.
   useEffect(() => {
     if (!open) return;
     api.getSettings()
       .then((s) => {
-        setAlwaysUpdate(s.dockerAutoUpdate);
-        if (s.dockerAutoUpdate) {
+        setAlwaysUpdate(s.autoRebuildImage);
+        if (s.autoRebuildImage) {
           triggerPull();
         }
       })
@@ -98,7 +98,7 @@ export function DockerUpdateDialog() {
     const next = !alwaysUpdate;
     setAlwaysUpdate(next);
     try {
-      await api.updateSettings({ dockerAutoUpdate: next });
+      await api.updateSettings({ autoRebuildImage: next });
     } catch {
       setAlwaysUpdate(!next);
     }
@@ -107,7 +107,7 @@ export function DockerUpdateDialog() {
   return (
     <div
       className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 animate-fade-in"
-      data-testid="docker-update-dialog"
+      data-testid="image-update-dialog"
     >
       <div className="bg-cc-bg rounded-xl shadow-xl border border-cc-border w-full max-w-md mx-4 overflow-hidden">
         {phase === "prompt" && (
@@ -116,8 +116,8 @@ export function DockerUpdateDialog() {
               Update Sandbox Image?
             </h2>
             <p className="text-sm text-cc-muted mb-5">
-              A new version of The Companion was installed. Would you like to also
-              update the sandbox Docker image?
+              A new version of Companion Incus was installed. Would you like to also
+              rebuild the sandbox container image?
             </p>
 
             {/* Always-update toggle */}
@@ -126,11 +126,11 @@ export function DockerUpdateDialog() {
               onClick={handleToggle}
               className="w-full flex items-center justify-between px-3 py-3 rounded-lg text-sm bg-cc-hover text-cc-fg hover:bg-cc-active transition-colors cursor-pointer mb-5"
             >
-              <span>Always update Docker image automatically</span>
+              <span>Auto-rebuild container image</span>
               <span
                 role="switch"
                 aria-checked={alwaysUpdate}
-                aria-label="Always update Docker image automatically"
+                aria-label="Auto-rebuild container image"
                 className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${
                   alwaysUpdate ? "bg-cc-primary" : "bg-cc-border"
                 }`}
@@ -173,7 +173,7 @@ export function DockerUpdateDialog() {
               </h2>
             </div>
             <p className="text-sm text-cc-muted mb-3">
-              Pulling the-companion:latest
+              Building container image...
             </p>
             {pullState?.progress && pullState.progress.length > 0 && (
               <pre
@@ -197,7 +197,7 @@ export function DockerUpdateDialog() {
               </h2>
             </div>
             <p className="text-sm text-cc-muted mb-5">
-              The Docker image has been updated successfully.
+              The container image has been updated successfully.
             </p>
             <div className="flex justify-end">
               <button
@@ -222,7 +222,7 @@ export function DockerUpdateDialog() {
               </h2>
             </div>
             <p className="text-sm text-cc-muted mb-2">
-              Failed to update the Docker image.
+              Failed to update the container image.
               {pullState?.error && (
                 <span className="block mt-1 text-xs text-cc-error">{pullState.error}</span>
               )}
@@ -259,9 +259,9 @@ export function DockerUpdateDialog() {
 }
 
 /**
- * Static preview of the DockerUpdateDialog for the Playground page.
+ * Static preview of the ImageUpdateDialog for the Playground page.
  */
-export function PlaygroundDockerUpdateDialog({ phase }: { phase: DialogPhase }) {
+export function PlaygroundImageUpdateDialog({ phase }: { phase: DialogPhase }) {
   return (
     <div className="relative bg-black/50 rounded-lg overflow-hidden h-[300px] flex items-center justify-center">
       <div className="bg-cc-bg rounded-xl shadow-xl border border-cc-border w-full max-w-sm mx-4 overflow-hidden">
@@ -269,7 +269,7 @@ export function PlaygroundDockerUpdateDialog({ phase }: { phase: DialogPhase }) 
           <div className="p-5">
             <h2 className="text-sm font-semibold text-cc-fg mb-1.5">Update Sandbox Image?</h2>
             <p className="text-xs text-cc-muted mb-4">
-              A new version of The Companion was installed. Would you like to also update the sandbox Docker image?
+              A new version of Companion Incus was installed. Would you like to also rebuild the sandbox container image?
             </p>
             <div className="flex items-center justify-between px-2 py-2 rounded-lg bg-cc-hover text-xs text-cc-fg mb-4">
               <span>Always update automatically</span>
@@ -292,7 +292,7 @@ export function PlaygroundDockerUpdateDialog({ phase }: { phase: DialogPhase }) 
               <h2 className="text-sm font-semibold text-cc-fg">Updating Sandbox Image...</h2>
             </div>
             <pre className="px-2 py-1.5 text-[9px] font-mono-code bg-cc-code-bg rounded text-cc-muted max-h-[80px] overflow-auto whitespace-pre-wrap">
-              {"Pulling the-companion:latest...\nLayer 1/5: abc123 downloading\nLayer 2/5: def456 complete"}
+              {"Building container image...\nLayer 1/5: abc123 downloading\nLayer 2/5: def456 complete"}
             </pre>
           </div>
         )}
@@ -304,7 +304,7 @@ export function PlaygroundDockerUpdateDialog({ phase }: { phase: DialogPhase }) 
               </svg>
               <h2 className="text-sm font-semibold text-cc-success">Sandbox Image Updated</h2>
             </div>
-            <p className="text-xs text-cc-muted mb-4">The Docker image has been updated successfully.</p>
+            <p className="text-xs text-cc-muted mb-4">The container image has been updated successfully.</p>
             <div className="flex justify-end">
               <span className="px-3 py-1.5 rounded-lg text-xs bg-cc-primary text-white">Done</span>
             </div>
@@ -318,7 +318,7 @@ export function PlaygroundDockerUpdateDialog({ phase }: { phase: DialogPhase }) 
               </svg>
               <h2 className="text-sm font-semibold text-cc-error">Image Update Failed</h2>
             </div>
-            <p className="text-xs text-cc-muted mb-4">Failed to update the Docker image.</p>
+            <p className="text-xs text-cc-muted mb-4">Failed to update the container image.</p>
             <div className="flex justify-end gap-2">
               <span className="px-3 py-1.5 rounded-lg text-xs bg-cc-hover text-cc-fg">Close</span>
               <span className="px-3 py-1.5 rounded-lg text-xs bg-cc-primary text-white">Retry</span>

@@ -11,7 +11,7 @@ export interface UpdatesSlice {
   updateInfo: UpdateInfo | null;
   updateDismissedVersion: string | null;
   updateOverlayActive: boolean;
-  dockerUpdateDialogOpen: boolean;
+  imageUpdateDialogOpen: boolean;
   creationProgress: CreationProgressEvent[] | null;
   creationError: string | null;
   sessionCreating: boolean;
@@ -20,7 +20,7 @@ export interface UpdatesSlice {
   setUpdateInfo: (info: UpdateInfo | null) => void;
   dismissUpdate: (version: string) => void;
   setUpdateOverlayActive: (active: boolean) => void;
-  setDockerUpdateDialogOpen: (open: boolean) => void;
+  setImageUpdateDialogOpen: (open: boolean) => void;
   addCreationProgress: (step: CreationProgressEvent) => void;
   clearCreation: () => void;
   setSessionCreating: (creating: boolean, backend?: "claude" | "codex") => void;
@@ -31,7 +31,7 @@ export const createUpdatesSlice: StateCreator<AppState, [], [], UpdatesSlice> = 
   updateInfo: null,
   updateDismissedVersion: getInitialDismissedVersion(),
   updateOverlayActive: false,
-  dockerUpdateDialogOpen: false,
+  imageUpdateDialogOpen: false,
   creationProgress: null,
   creationError: null,
   sessionCreating: false,
@@ -43,7 +43,7 @@ export const createUpdatesSlice: StateCreator<AppState, [], [], UpdatesSlice> = 
     set({ updateDismissedVersion: version });
   },
   setUpdateOverlayActive: (active) => set({ updateOverlayActive: active }),
-  setDockerUpdateDialogOpen: (open) => set({ dockerUpdateDialogOpen: open }),
+  setImageUpdateDialogOpen: (open) => set({ imageUpdateDialogOpen: open }),
 
   addCreationProgress: (step) => set((state) => {
     const existing = state.creationProgress || [];

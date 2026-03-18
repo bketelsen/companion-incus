@@ -11,7 +11,7 @@ vi.mock("./TerminalView.js", () => ({
 interface MockStoreState {
   currentSessionId: string | null;
   quickTerminalOpen: boolean;
-  quickTerminalTabs: { id: string; label: string; cwd: string; containerId?: string }[];
+  quickTerminalTabs: { id: string; label: string; cwd: string; containerName?: string }[];
   activeQuickTerminalTabId: string | null;
   quickTerminalPlacement: "top" | "right" | "bottom" | "left";
   setQuickTerminalOpen: ReturnType<typeof vi.fn>;
@@ -19,7 +19,7 @@ interface MockStoreState {
   closeQuickTerminalTab: ReturnType<typeof vi.fn>;
   setActiveQuickTerminalTabId: ReturnType<typeof vi.fn>;
   sessions: Map<string, { cwd?: string; is_containerized?: boolean }>;
-  sdkSessions: { sessionId: string; cwd?: string; containerId?: string }[];
+  sdkSessions: { sessionId: string; cwd?: string; containerName?: string }[];
 }
 
 let storeState: MockStoreState;
@@ -106,9 +106,9 @@ describe("SessionTerminalDock", () => {
     expect(storeState.openQuickTerminal).toHaveBeenCalledWith({ target: "host", cwd: "/repo" });
   });
 
-  it("opens docker terminal from + Terminal in container sessions", () => {
+  it("opens container terminal from + Terminal in container sessions", () => {
     resetStore({
-      sdkSessions: [{ sessionId: "s1", cwd: "/repo", containerId: "ctr-1" }],
+      sdkSessions: [{ sessionId: "s1", cwd: "/repo", containerName: "ctr-1" }],
     });
 
     render(
@@ -119,9 +119,9 @@ describe("SessionTerminalDock", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "+ Terminal" }));
     expect(storeState.openQuickTerminal).toHaveBeenCalledWith({
-      target: "docker",
+      target: "container",
       cwd: "/workspace",
-      containerId: "ctr-1",
+      containerName: "ctr-1",
     });
   });
 });

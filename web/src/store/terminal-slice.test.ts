@@ -87,44 +87,44 @@ describe("Quick terminal", () => {
     expect(useStore.getState().quickTerminalOpen).toBe(false);
   });
 
-  it("openQuickTerminal: creates a docker tab with Docker label", () => {
+  it("openQuickTerminal: creates a container tab with Container label", () => {
     useStore.getState().openQuickTerminal({
-      target: "docker",
+      target: "container",
       cwd: "/app",
-      containerId: "abc123",
+      containerName: "abc123",
     });
 
     const state = useStore.getState();
     expect(state.quickTerminalOpen).toBe(true);
     expect(state.quickTerminalTabs).toHaveLength(1);
-    expect(state.quickTerminalTabs[0].label).toBe("Docker 1");
+    expect(state.quickTerminalTabs[0].label).toBe("Container 1");
     expect(state.quickTerminalTabs[0].cwd).toBe("/app");
-    expect(state.quickTerminalTabs[0].containerId).toBe("abc123");
+    expect(state.quickTerminalTabs[0].containerName).toBe("abc123");
   });
 
-  it("openQuickTerminal docker: increments docker index, not host index", () => {
-    useStore.getState().openQuickTerminal({ target: "docker", cwd: "/a", containerId: "c1" });
-    useStore.getState().openQuickTerminal({ target: "docker", cwd: "/b", containerId: "c2" });
+  it("openQuickTerminal container: increments container index, not host index", () => {
+    useStore.getState().openQuickTerminal({ target: "container", cwd: "/a", containerName: "c1" });
+    useStore.getState().openQuickTerminal({ target: "container", cwd: "/b", containerName: "c2" });
 
     const tabs = useStore.getState().quickTerminalTabs;
-    expect(tabs[0].label).toBe("Docker 1");
-    expect(tabs[1].label).toBe("Docker 2");
+    expect(tabs[0].label).toBe("Container 1");
+    expect(tabs[1].label).toBe("Container 2");
 
     // Host index should still be 1
     expect(useStore.getState().quickTerminalNextHostIndex).toBe(1);
-    expect(useStore.getState().quickTerminalNextDockerIndex).toBe(3);
+    expect(useStore.getState().quickTerminalNextContainerIndex).toBe(3);
   });
 
-  it("openQuickTerminal with reuseIfExists: does not reuse if containerId differs", () => {
-    useStore.getState().openQuickTerminal({ target: "docker", cwd: "/app", containerId: "c1" });
+  it("openQuickTerminal with reuseIfExists: does not reuse when containerName differs", () => {
+    useStore.getState().openQuickTerminal({ target: "container", cwd: "/app", containerName: "c1" });
     useStore.getState().openQuickTerminal({
-      target: "docker",
+      target: "container",
       cwd: "/app",
-      containerId: "c2",
+      containerName: "c2",
       reuseIfExists: true,
     });
 
-    // Should have created a second tab since containerId differs
+    // Should have created a second tab since containerName differs
     expect(useStore.getState().quickTerminalTabs).toHaveLength(2);
   });
 
@@ -169,7 +169,7 @@ describe("Quick terminal", () => {
 
   it("resetQuickTerminal: clears all terminal state and resets indices", () => {
     useStore.getState().openQuickTerminal({ target: "host", cwd: "/a" });
-    useStore.getState().openQuickTerminal({ target: "docker", cwd: "/b", containerId: "c1" });
+    useStore.getState().openQuickTerminal({ target: "container", cwd: "/b", containerName: "c1" });
 
     useStore.getState().resetQuickTerminal();
 
@@ -178,7 +178,7 @@ describe("Quick terminal", () => {
     expect(state.quickTerminalTabs).toEqual([]);
     expect(state.activeQuickTerminalTabId).toBeNull();
     expect(state.quickTerminalNextHostIndex).toBe(1);
-    expect(state.quickTerminalNextDockerIndex).toBe(1);
+    expect(state.quickTerminalNextContainerIndex).toBe(1);
   });
 });
 

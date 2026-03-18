@@ -59,14 +59,14 @@ export function TopBar() {
     return s.sessions.get(currentSessionId) || null;
   });
   const defaultTerminalOpts = useMemo(() => {
-    if (sdkSession?.containerId) {
-      return { target: "docker" as const, cwd: "/workspace", containerId: sdkSession.containerId };
+    if (sdkSession?.containerName) {
+      return { target: "container" as const, cwd: "/workspace", containerName: sdkSession.containerName };
     }
     return { target: "host" as const, cwd: cwd || "" };
-  }, [cwd, sdkSession?.containerId]);
+  }, [cwd, sdkSession?.containerName]);
   const terminalButtonTitle = !cwd
     ? "Terminal unavailable while session is reconnecting"
-    : sdkSession?.containerId || bridgeSession?.is_containerized
+    : sdkSession?.containerName || bridgeSession?.is_containerized
       ? "Open terminal in session container (Ctrl/Cmd+J)"
       : "Quick terminal (Ctrl/Cmd+J)";
   const status = currentSessionId ? (sessionStatus.get(currentSessionId) ?? null) : null;
@@ -78,7 +78,7 @@ export function TopBar() {
     : null;
   const showWorkspaceControls = !!(currentSessionId && isSessionView);
   const showContextToggle = route.page === "session" && !!currentSessionId;
-  const isContainerSession = !!(sdkSession?.containerId || bridgeSession?.is_containerized);
+  const isContainerSession = !!(sdkSession?.containerName || bridgeSession?.is_containerized);
   const workspaceTabs: WorkspaceTab[] = ["chat", "diff", "terminal", "processes", "editor", "browser"];
 
   const activateWorkspaceTab = (tab: WorkspaceTab) => {

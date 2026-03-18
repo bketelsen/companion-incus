@@ -485,10 +485,10 @@ describe("getCloudProviderPlan", () => {
 // terminal API
 // ===========================================================================
 describe("terminal API", () => {
-  it("spawnTerminal sends cwd, size, and optional containerId", async () => {
+  it("spawnTerminal sends cwd, size, and optional containerName", async () => {
     mockFetch.mockResolvedValueOnce(mockResponse({ terminalId: "term-1" }));
 
-    const result = await api.spawnTerminal("/workspace", 120, 40, { containerId: "abc123" });
+    const result = await api.spawnTerminal("/workspace", 120, 40, { containerName: "abc123" });
 
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/terminal/spawn");
@@ -497,7 +497,7 @@ describe("terminal API", () => {
       cwd: "/workspace",
       cols: 120,
       rows: 40,
-      containerId: "abc123",
+      containerName: "abc123",
     });
     expect(result).toEqual({ terminalId: "term-1" });
   });
@@ -830,26 +830,26 @@ describe("environment API", () => {
     expect(result).toEqual(data);
   });
 
-  it("buildBaseImage sends POST to /api/docker/build-base", async () => {
+  it("buildBaseImage sends POST to /api/incus/build-image", async () => {
     const data = { ok: true, tag: "companion-base:latest" };
     mockFetch.mockResolvedValueOnce(mockResponse(data));
 
     const result = await api.buildBaseImage();
 
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/docker/build-base");
+    expect(url).toBe("/api/incus/build-image");
     expect(opts.method).toBe("POST");
     expect(result).toEqual(data);
   });
 
-  it("getBaseImageStatus sends GET to /api/docker/base-image", async () => {
+  it("getBaseImageStatus sends GET to /api/incus/image-status", async () => {
     const data = { exists: true, tag: "companion-base:latest" };
     mockFetch.mockResolvedValueOnce(mockResponse(data));
 
     const result = await api.getBaseImageStatus();
 
     const [url] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/docker/base-image");
+    expect(url).toBe("/api/incus/image-status");
     expect(result).toEqual(data);
   });
 
