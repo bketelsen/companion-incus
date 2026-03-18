@@ -152,11 +152,11 @@ export interface IncusContainerInfo {
   hostCwd: string;
   containerCwd: string;       // always "/workspace"
   hostWorkspaceDir: string;   // host temp dir mounted at /workspace, cleaned up on removal
-  homeDir: string;            // resolved at creation, e.g. "/home/ubuntu"
+  homeDir: string;            // resolved at creation, e.g. "/home/code"
   user: {                     // resolved at creation
     uid: number;              // e.g. 1000
     gid: number;              // e.g. 1000
-    name: string;             // e.g. "ubuntu"
+    name: string;             // e.g. "code"
   };
   state: "creating" | "running" | "stopped" | "removed";
 }
@@ -227,6 +227,7 @@ export const incusManager: IncusManager;
 3.  incus launch <image> <name> [--profile p1 --profile p2] [-c security.nesting=true]
 4.  Resolve container user:
       incus exec <name> -- getent passwd 1000 → parse homeDir, username
+      (expect "code" user from provision script; fall back to whatever UID 1000 is)
 5.  Add disk devices:
       workspace:     host temp dir → /workspace (shift=true)
       claude-auth:   host ~/.claude → /companion-host-claude (readonly, shift=true)
@@ -255,6 +256,8 @@ export const incusManager: IncusManager;
 **Workspace cleanup:** `removeContainer()` deletes the host workspace temp dir (`hostWorkspaceDir`) after `incus delete --force`. Unlike Docker named volumes, this is a plain host directory that must be explicitly cleaned up.
 
 ### Exec — Unprivileged User Context
+
+**Important: supplementary groups limitation.** `incus exec` does not call `initgroups()` when `--user`/`--group` are specified, so supplementary groups are not active in the session. Only the primary group (e.g., `code`, GID 1000) is guaranteed. This is why the provision script configures Docker socket permissions via the primary group rather than the `docker` supplementary group.
 
 All `execInContainer` calls run as the resolved unprivileged user:
 
@@ -360,16 +363,29 @@ incus launch companion-incus <name> --profile default --profile companion-ssd
 
 On first run, the bundled script is copied to `~/.companion/incus/` if not already present. The build flow always reads from `~/.companion/incus/`. Users can customize their image toolchain by editing this file.
 
-The script installs (as UID 1000 where user-level, system-wide where appropriate):
-- System packages (curl, git, build-essential, etc.)
-- Node.js 22 via nvm (user-level, `/home/ubuntu/.nvm`)
-- Bun, Deno (user-level)
-- Go 1.23, Rust, Python 3
+The script follows the proven pattern from `bketelsen/clincus` and should:
+
+**System setup (runs as root):**
+- Configure DNS fallback — disable `systemd-resolved` if DNS resolution fails, write static resolv.conf (8.8.8.8, 8.8.4.4, 1.1.1.1). This is a known issue in Incus system containers.
+- Install base packages: `curl wget git ca-certificates gnupg jq unzip sudo tmux ripgrep fzf build-essential` + dev libraries
+- Rename default `ubuntu` user to `code` (UID 1000) with passwordless sudo — more semantic than `ubuntu` for a coding container
+- Configure `/tmp` auto-cleanup: 1-hour age threshold, 15-minute timer (AI agents fill `/tmp` quickly)
+- Configure power management wrappers (`shutdown`, `poweroff`, etc.) for container UX
+- Install Docker CE with socket permissions for primary group `code` (daemon.json `"group": "code"` + systemd socket drop-in `SocketGroup=code`) — needed because `incus exec` does not activate supplementary groups when `--group` is specified
+
+**Developer tools (system-wide via apt or official installers):**
+- Node.js 22 (nodesource)
 - GitHub CLI (`gh`)
-- Claude Code CLI, Codex CLI (via npm)
+- Docker CE (with socket permissions configured for UID 1000 primary group)
+
+**Developer tools (user-level, as `code` user):**
+- Claude Code CLI via native installer (`curl -fsSL https://claude.ai/install.sh | bash`) — symlinked to `/usr/local/bin/claude`
+- Codex CLI (via npm global)
+- Bun, Deno (user-level installs)
 - code-server (VS Code in browser)
 - Xvfb, noVNC, Chromium (browser preview)
-- No Docker-in-Docker — Incus nesting provides inner container support
+
+**Cleanup:** `apt-get clean && rm -rf /var/lib/apt/lists/*`
 
 ### Build Flow
 
@@ -638,6 +654,8 @@ All test files with Docker strings, `DockerUpdateDialog` references, or Docker s
 | **Provision script divergence** | User edits break image builds | `POST /api/incus/provision-script/reset` to restore bundled default; provision script version header |
 | **`shift=true` + readonly edge cases** | UID shifting on readonly disk devices may behave unexpectedly | Validate during implementation; fall back to non-shifted mount + explicit permission setup if needed |
 | **`createContainer` blocks event loop** | Multi-step Incus creation (launch + user resolve + devices + systemd wait) is slower than Docker | Consider making `createContainer` async in implementation if blocking exceeds ~5s; session creation is already async |
+| **DNS broken in Incus containers** | `systemd-resolved` can fail inside containers, breaking apt/curl/git | Provision script detects and fixes DNS (disable systemd-resolved, write static resolv.conf). Pattern proven in clincus. |
+| **`incus exec` supplementary groups inactive** | Tools relying on group membership (e.g., Docker socket) fail silently | Provision script configures Docker socket via primary group (`code`, GID 1000) instead of supplementary `docker` group. All exec uses `--user`/`--group` with primary group only. |
 
 ---
 
