@@ -29,6 +29,9 @@ Server commands:
   logs        Tail service log files
   help        Show this help message
 
+Image commands:
+  rebuild-image  Rebuild the Incus container image from provision script
+
 Management commands (requires running server):
   sessions    Manage sessions (list, create, kill, relaunch, archive, rename, send-message)
   envs        Manage environment profiles (list, get, create, update, delete)
@@ -145,6 +148,26 @@ switch (command) {
     console.log("Tailing logs from ~/.companion/logs/");
     const tail = spawn("tail", ["-f", logFile, errFile], { stdio: "inherit" });
     tail.on("exit", () => process.exit(0));
+    break;
+  }
+
+  case "rebuild-image": {
+    const { incusManager } = await import("../server/incus-manager.js");
+    if (!incusManager.checkIncus()) {
+      console.error("Incus is not available. Please install Incus first.");
+      process.exit(1);
+    }
+    const alias = process.argv[3] || "companion-incus";
+    console.log(`Rebuilding Incus image "${alias}"...`);
+    const result = await incusManager.buildImage(alias, (line) => {
+      console.log(line);
+    });
+    if (result.success) {
+      console.log(`\nImage "${alias}" rebuilt successfully.`);
+    } else {
+      console.error(`\nImage build failed. Check output above for details.`);
+      process.exit(1);
+    }
     break;
   }
 
