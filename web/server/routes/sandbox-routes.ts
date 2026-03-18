@@ -87,7 +87,7 @@ export function registerSandboxRoutes(
     }
 
     const tempId = `t${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
-    let containerId: string | undefined;
+    let containerName: string | undefined;
 
     try {
       const config: IncusContainerConfig = {
@@ -95,13 +95,13 @@ export function registerSandboxRoutes(
         ports: [],
       };
       const containerInfo = incusManager.createContainer(tempId, cwd, config);
-      containerId = containerInfo.name;
+      containerName = containerInfo.name;
 
-      await incusManager.copyWorkspaceToContainer(containerId, cwd);
+      await incusManager.copyWorkspaceToContainer(containerName, cwd);
 
       const initTimeout = Number(process.env.COMPANION_INIT_SCRIPT_TIMEOUT) || 120_000;
       const result = await incusManager.execInContainerAsync(
-        containerId,
+        containerName,
         ["sh", "-lc", initScript],
         { timeout: initTimeout },
       );
@@ -119,7 +119,7 @@ export function registerSandboxRoutes(
       const msg = e instanceof Error ? e.message : String(e);
       return c.json({ success: false, exitCode: -1, output: msg }, 500);
     } finally {
-      if (containerId) {
+      if (containerName) {
         try { incusManager.removeContainer(tempId); } catch { /* best effort cleanup */ }
       }
     }

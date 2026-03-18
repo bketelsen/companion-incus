@@ -231,8 +231,8 @@ export class CliLauncher {
       // Check if the process is still alive
       if (info.state !== "exited") {
         if (info.containerName && info.codexWsPort) {
-          // Docker WS mode: the stored PID is `docker exec -d` which exits
-          // immediately after launch.  Check container liveness instead.
+          // Container WS mode: the detached incus exec exits immediately
+          // after launch.  Check container liveness instead.
           const containerState = incusManager.isContainerAlive(info.containerName);
           if (containerState === "running") {
             info.state = "starting";
@@ -905,8 +905,8 @@ export class CliLauncher {
     info.state = "connected";
 
     // Monitor the proxy connection process as the primary transport liveness.
-    // In container mode, `docker exec -d` exits immediately after launching Codex
-    // and must not be treated as the backend process lifetime.
+    // In container mode, the detached incus exec exits immediately after launching
+    // Codex and must not be treated as the backend process lifetime.
     let exitHandled = false;
     const handleWsSessionExit = (exitCode: number | null, source: "proxy" | "codex") => {
       if (exitHandled) return;
@@ -949,7 +949,7 @@ export class CliLauncher {
       });
     } else {
       proc.exited.then((exitCode) => {
-        // `docker exec -d` exits immediately after launch in container WS mode.
+        // Detached incus exec exits immediately after launch in container WS mode.
         // Suppress the expected success case to avoid noisy logs; keep non-zero exits.
         if (exitCode !== 0) {
           console.warn(`[cli-launcher] Codex WS launcher command for ${sessionId} exited (code=${exitCode})`);

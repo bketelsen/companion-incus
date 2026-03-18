@@ -45,7 +45,7 @@ export function SettingsPage({ embedded = false }: SettingsPageProps) {
   const setStoreEditorTabEnabled = useStore((s) => s.setEditorTabEnabled);
   const notificationApiAvailable = typeof Notification !== "undefined";
   const [updateChannel, setUpdateChannel] = useState<"stable" | "prerelease">("stable");
-  const [autoRebuildImage, setDockerAutoUpdate] = useState(false);
+  const [autoRebuildImage, setAutoRebuildImage] = useState(false);
   const [checkingUpdates, setCheckingUpdates] = useState(false);
   const [updatingApp, setUpdatingApp] = useState(false);
   const [updateStatus, setUpdateStatus] = useState("");
@@ -127,7 +127,7 @@ export function SettingsPage({ embedded = false }: SettingsPageProps) {
         if (typeof s.aiValidationAutoApprove === "boolean") setAiValidationAutoApprove(s.aiValidationAutoApprove);
         if (typeof s.aiValidationAutoDeny === "boolean") setAiValidationAutoDeny(s.aiValidationAutoDeny);
         if (s.updateChannel === "stable" || s.updateChannel === "prerelease") setUpdateChannel(s.updateChannel);
-        if (typeof s.autoRebuildImage === "boolean") setDockerAutoUpdate(s.autoRebuildImage);
+        if (typeof s.autoRebuildImage === "boolean") setAutoRebuildImage(s.autoRebuildImage);
         if (typeof s.publicUrl === "string") {
           setPublicUrl(s.publicUrl);
           useStore.getState().setPublicUrl(s.publicUrl);
@@ -856,11 +856,11 @@ export function SettingsPage({ embedded = false }: SettingsPageProps) {
                     aria-checked={autoRebuildImage}
                     onClick={async () => {
                       const next = !autoRebuildImage;
-                      setDockerAutoUpdate(next);
+                      setAutoRebuildImage(next);
                       try {
                         await api.updateSettings({ autoRebuildImage: next });
                       } catch {
-                        setDockerAutoUpdate(!next);
+                        setAutoRebuildImage(!next);
                       }
                     }}
                     className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
