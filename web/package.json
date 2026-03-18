@@ -1,6 +1,6 @@
 {
   "name": "companion-incus",
-  "version": "0.92.4",
+  "version": "0.93.0",
   "type": "module",
   "description": "Incus-powered web UI for Claude Code & Codex agents",
   "license": "MIT",
