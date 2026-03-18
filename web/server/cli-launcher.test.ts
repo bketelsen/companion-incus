@@ -18,12 +18,25 @@ const mockIsContainerAlive = vi.hoisted(() => vi.fn((): "running" | "stopped" | 
 const mockHasBinaryInContainer = vi.hoisted(() => vi.fn((): boolean => true));
 const mockStartContainer = vi.hoisted(() => vi.fn());
 const mockGetContainerByName = vi.hoisted(() => vi.fn((_containerName: string) => undefined as any));
+const mockGetHostAddress = vi.hoisted(() => vi.fn(() => "10.0.0.1"));
+const mockBuildExecCommand = vi.hoisted(() => vi.fn((_name: string, opts: any) => {
+  const args = ["incus", "exec", "--user", "1000", "--group", "1000", "--env", "HOME=/home/code"];
+  if (opts.env) {
+    for (const [k, v] of Object.entries(opts.env)) {
+      args.push("--env", `${k}=${v}`);
+    }
+  }
+  args.push(_name, "--", ...(opts.cmd || []));
+  return args;
+}));
 vi.mock("./incus-manager.js", () => ({
   incusManager: {
     isContainerAlive: mockIsContainerAlive,
     hasBinaryInContainer: mockHasBinaryInContainer,
     startContainer: mockStartContainer,
     getContainerByName: mockGetContainerByName,
+    getHostAddress: mockGetHostAddress,
+    buildExecCommand: mockBuildExecCommand,
   },
 }));
 
@@ -384,7 +397,8 @@ describe("launch", () => {
     const [cmdAndArgs] = mockSpawn.mock.calls[0];
     expect(cmdAndArgs[0]).toBe("incus");
     expect(cmdAndArgs[1]).toBe("exec");
-    expect(cmdAndArgs[2]).toBe("-i");
+    // buildExecCommand uses --user/--group/--env flags (not Docker's -i)
+    expect(cmdAndArgs).toContain("--user");
     // Should wrap the CLI command in bash -lc for login shell PATH
     expect(cmdAndArgs).toContain("bash");
     expect(cmdAndArgs).toContain("-lc");
@@ -755,7 +769,8 @@ describe("relaunch", () => {
     expect(result).toEqual({ ok: true });
 
     const [relaunchCmd] = mockSpawn.mock.calls[1];
-    expect(relaunchCmd).toContain("-e");
+    // Incus uses --env instead of Docker's -e for environment variables
+    expect(relaunchCmd).toContain("--env");
     expect(relaunchCmd).toContain("CLAUDE_CODE_OAUTH_TOKEN=tok-test");
   });
 

@@ -636,7 +636,7 @@ describe("CLI handlers", () => {
     });
 
     mockExecSync.mockImplementation((cmd: string) => {
-      if (!cmd.startsWith("incus exec companion-test -- sh -lc ")) {
+      if (!(cmd.includes("companion-test") && cmd.includes("sh -lc"))) {
         throw new Error(`unexpected command: ${cmd}`);
       }
       if (cmd.includes("--abbrev-ref HEAD")) return "container-branch\n";
@@ -675,7 +675,7 @@ describe("CLI handlers", () => {
     });
 
     mockExecSync.mockImplementation((cmd: string) => {
-      if (!cmd.startsWith("incus exec companion-test -- sh -lc ")) {
+      if (!(cmd.includes("companion-test") && cmd.includes("sh -lc"))) {
         throw new Error(`unexpected command: ${cmd}`);
       }
       if (cmd.includes("--abbrev-ref HEAD")) return "container-branch\n";

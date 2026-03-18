@@ -814,7 +814,7 @@ describe("POST /api/sessions/:id/editor/start", () => {
       url: "http://localhost:49152?folder=%2Fworkspace",
     });
     expect(execSpy).toHaveBeenCalledWith(
-      "cid-1",
+      "companion-s1",
       expect.arrayContaining(["sh", "-lc"]),
       10_000,
     );
@@ -4069,7 +4069,7 @@ describe("POST /api/sessions/:id/processes/system/:pid/kill", () => {
     const data = await res.json();
     expect(data.ok).toBe(true);
     expect(execSpy).toHaveBeenCalledWith(
-      "cid123",
+      "companion-cid123",
       ["kill", "-TERM", "9999"],
       5_000,
     );
@@ -4356,7 +4356,7 @@ describe("POST /api/sessions/:id/browser/navigate", () => {
     const json = await res.json();
     expect(json).toMatchObject({ ok: true, url: "http://localhost:3000" });
     expect(execSpy).toHaveBeenCalledWith(
-      "cid-1",
+      "companion-s1",
       expect.arrayContaining(["sh", "-c"]),
       { timeout: 10_000 },
     );

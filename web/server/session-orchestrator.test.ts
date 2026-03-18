@@ -675,7 +675,7 @@ describe("SessionOrchestrator", () => {
 
       expect(result.ok).toBe(true);
       expect(incusManager.execInContainerAsync).toHaveBeenCalledWith(
-        "cid-1",
+        "companion-1",
         ["sh", "-lc", "npm install"],
         expect.objectContaining({ timeout: expect.any(Number) }),
       );
