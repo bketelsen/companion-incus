@@ -17,7 +17,7 @@ import { CliLauncher } from "./cli-launcher.js";
 import { WsBridge } from "./ws-bridge.js";
 import { SessionStore } from "./session-store.js";
 import { WorktreeTracker } from "./worktree-tracker.js";
-import { containerManager } from "./container-manager.js";
+import { incusManager } from "./incus-manager.js";
 import { join } from "node:path";
 import { COMPANION_HOME } from "./paths.js";
 import { TerminalManager } from "./terminal-manager.js";
@@ -34,7 +34,7 @@ import { LinearAgentBridge } from "./linear-agent-bridge.js";
 import { NoVncProxy } from "./novnc-proxy.js";
 
 import { startPeriodicCheck, setServiceMode } from "./update-checker.js";
-import { imagePullManager } from "./image-pull-manager.js";
+import { imageProvisionManager } from "./image-provision-manager.js";
 import { restoreIfNeeded as restoreTailscaleFunnel, cleanup as cleanupTailscaleFunnel } from "./tailscale-manager.js";
 import { isRunningAsService } from "./service.js";
 import { getToken, verifyToken } from "./auth-manager.js";
@@ -88,7 +88,7 @@ launcher.setStore(sessionStore);
 launcher.setRecorder(recorder);
 launcher.restoreFromDisk();
 wsBridge.restoreFromDisk();
-containerManager.restoreState(CONTAINER_STATE_PATH);
+incusManager.restoreState(CONTAINER_STATE_PATH);
 
 // ── Session orchestrator — centralizes lifecycle event wiring ────────────────
 orchestrator.initialize();
@@ -138,9 +138,9 @@ app.route("/api", createRoutes(orchestrator, launcher, wsBridge, sessionStore, w
 // so this is the only way to bridge auth across the install boundary.
 app.get("/manifest.json", (c) => {
   const manifest = {
-    name: "The Companion",
+    name: "Companion Incus",
     short_name: "Companion",
-    description: "Web UI for Claude Code and Codex",
+    description: "Incus-powered web UI for Claude Code and Codex",
     start_url: "/",
     scope: "/",
     display: "standalone" as const,
@@ -338,8 +338,8 @@ migrateCronJobsToAgents();
 migrateLinearCredentialsToAgents();
 agentExecutor.startAll();
 
-// ── Image pull manager — pre-pull missing Docker images for environments ────
-imagePullManager.initFromEnvironments();
+// ── Image provision manager — ensure container image exists ─────────────────
+imageProvisionManager.ensureProvisionScript();
 
 // ── Tailscale Funnel restoration ────────────────────────────────────────────
 restoreTailscaleFunnel(port).catch((err) => {
@@ -386,7 +386,7 @@ setInterval(() => {
 // ── Graceful shutdown — persist container state ──────────────────────────────
 function gracefulShutdown() {
   console.log("[server] Persisting container state before shutdown...");
-  containerManager.persistState(CONTAINER_STATE_PATH);
+  incusManager.persistState(CONTAINER_STATE_PATH);
   cleanupTailscaleFunnel(port);
   closeLogFile();
   process.exit(0);

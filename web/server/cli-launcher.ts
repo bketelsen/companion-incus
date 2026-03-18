@@ -14,7 +14,7 @@ import type { BackendType } from "./session-types.js";
 import type { RecorderManager } from "./recorder.js";
 import { CodexAdapter } from "./codex-adapter.js";
 import { resolveBinary, getEnrichedPath } from "./path-resolver.js";
-import { containerManager } from "./container-manager.js";
+import { incusManager } from "./incus-manager.js";
 import { companionBus } from "./event-bus.js";
 import {
   getLegacyCodexHome,
@@ -127,11 +127,9 @@ export interface SdkSessionInfo {
   codexWsUrl?: string;
 
   // Container fields
-  /** Docker container ID when session runs inside a container */
-  containerId?: string;
-  /** Docker container name */
+  /** Incus container name when session runs inside a container */
   containerName?: string;
-  /** Docker image used for the container */
+  /** Incus image used for the container */
   containerImage?: string;
   /** Runtime cwd inside container for agent RPC calls (e.g. "/workspace"). */
   containerCwd?: string;
@@ -152,11 +150,9 @@ export interface LaunchOptions {
   codexInternetAccess?: boolean;
   /** Optional override for CODEX_HOME used by Codex sessions. */
   codexHome?: string;
-  /** Docker container ID — when set, CLI runs inside container via docker exec */
-  containerId?: string;
-  /** Docker container name */
+  /** Incus container name — when set, CLI runs inside container via incus exec */
   containerName?: string;
-  /** Docker image used for the container */
+  /** Incus image used for the container */
   containerImage?: string;
   /** Runtime cwd inside the container (typically "/workspace"). */
   containerCwd?: string;
@@ -212,7 +208,7 @@ export class CliLauncher {
   }
 
   private releaseCodexWsPort(info: SdkSessionInfo | undefined): void {
-    if (!info || info.containerId) return;
+    if (!info || info.containerName) return;
     if (typeof info.codexWsPort !== "number") return;
     this.claimedCodexWsPorts.delete(info.codexWsPort);
     info.codexWsPort = undefined;
@@ -234,10 +230,10 @@ export class CliLauncher {
 
       // Check if the process is still alive
       if (info.state !== "exited") {
-        if (info.containerId && info.codexWsPort) {
+        if (info.containerName && info.codexWsPort) {
           // Docker WS mode: the stored PID is `docker exec -d` which exits
           // immediately after launch.  Check container liveness instead.
-          const containerState = containerManager.isContainerAlive(info.containerId);
+          const containerState = incusManager.isContainerAlive(info.containerName);
           if (containerState === "running") {
             info.state = "starting";
             this.sessions.set(info.sessionId, info);
@@ -270,7 +266,7 @@ export class CliLauncher {
       // Avoid reusing ports already owned by recovered host-mode Codex sessions.
       if (
         info.backendType === "codex"
-        && !info.containerId
+        && !info.containerName
         && info.state !== "exited"
         && typeof info.codexWsPort === "number"
       ) {
@@ -317,8 +313,8 @@ export class CliLauncher {
     }
 
     // Store container metadata if provided
-    if (options.containerId) {
-      info.containerId = options.containerId;
+    if (options.containerName) {
+      info.containerName = options.containerName;
       info.containerName = options.containerName;
       info.containerImage = options.containerImage;
       info.containerCwd = options.containerCwd || "/workspace";
@@ -379,9 +375,9 @@ export class CliLauncher {
     this.releaseCodexWsPort(info);
 
     // Pre-flight validation for containerized sessions
-    if (info.containerId) {
-      const containerLabel = info.containerName || info.containerId.slice(0, 12);
-      const containerState = containerManager.isContainerAlive(info.containerId);
+    if (info.containerName) {
+      const containerLabel = info.containerName;
+      const containerState = incusManager.isContainerAlive(info.containerName);
 
       if (containerState === "missing") {
         console.error(`[cli-launcher] Container ${containerLabel} no longer exists for session ${sessionId}`);
@@ -396,7 +392,7 @@ export class CliLauncher {
 
       if (containerState === "stopped") {
         try {
-          containerManager.startContainer(info.containerId);
+          incusManager.startContainer(info.containerName);
           console.log(`[cli-launcher] Restarted stopped container ${containerLabel} for session ${sessionId}`);
         } catch (e) {
           info.state = "exited";
@@ -411,7 +407,7 @@ export class CliLauncher {
 
       // Validate the CLI binary exists inside the container
       const binary = info.backendType === "codex" ? "codex" : "claude";
-      if (!containerManager.hasBinaryInContainer(info.containerId, binary)) {
+      if (!incusManager.hasBinaryInContainer(info.containerName, binary)) {
         console.error(`[cli-launcher] "${binary}" not found in container ${containerLabel} for session ${sessionId}`);
         info.state = "exited";
         info.exitCode = 127;
@@ -434,7 +430,6 @@ export class CliLauncher {
         cwd: info.cwd,
         codexSandbox: info.codexSandbox,
         codexInternetAccess: info.codexInternetAccess,
-        containerId: info.containerId,
         containerName: info.containerName,
         containerImage: info.containerImage,
         containerCwd: info.containerCwd,
@@ -446,7 +441,6 @@ export class CliLauncher {
         permissionMode: info.permissionMode,
         cwd: info.cwd,
         resumeSessionId: info.cliSessionId,
-        containerId: info.containerId,
         containerName: info.containerName,
         containerImage: info.containerImage,
         env: runtimeEnv,
@@ -463,7 +457,7 @@ export class CliLauncher {
   }
 
   private spawnCLI(sessionId: string, info: SdkSessionInfo, options: LaunchOptions & { resumeSessionId?: string }): void {
-    const isContainerized = !!options.containerId;
+    const isContainerized = !!options.containerName;
 
     // For containerized sessions, the CLI binary lives inside the container.
     // For host sessions, resolve the binary on the host.
@@ -481,10 +475,10 @@ export class CliLauncher {
       }
     }
 
-    // Allow overriding the host alias used by containerized Claude sessions.
-    // Useful when host.docker.internal is unavailable in a given Docker setup.
-    const containerSdkHost = (process.env.COMPANION_CONTAINER_SDK_HOST || "host.docker.internal").trim()
-      || "host.docker.internal";
+    // Allow overriding the host address used by containerized sessions.
+    // Falls back to Incus bridge IP discovery.
+    const containerSdkHost = process.env.COMPANION_CONTAINER_SDK_HOST?.trim()
+      || incusManager.getHostAddress();
 
     // When running inside a container, the SDK URL should target the host alias
     // so the CLI can connect back to the Hono server running on the host.
@@ -558,29 +552,21 @@ export class CliLauncher {
     let spawnCwd: string | undefined;
 
     if (isContainerized) {
-      // Run CLI inside the container via docker exec -i.
-      // Keeping stdin open avoids premature EOF-driven exits in SDK mode.
-      // Environment variables are passed via -e flags to docker exec.
-      const dockerArgs = ["docker", "exec", "-i"];
-
-      // Pass env vars via -e flags
-      if (options.env) {
-        for (const [k, v] of Object.entries(options.env)) {
-          dockerArgs.push("-e", `${k}=${v}`);
-        }
-      }
-      // Ensure CLAUDECODE is unset inside container
-      dockerArgs.push("-e", "CLAUDECODE=");
-
-      dockerArgs.push(options.containerId!);
-      // Use a login shell so ~/.bashrc is sourced and nvm/bun/deno/etc are on PATH
+      // Run CLI inside the container via incus exec.
+      // Uses buildExecCommand to set up user context (uid/gid/HOME).
       const innerCmd = [binary, ...args].map(a => `'${a.replace(/'/g, "'\\''")}'`).join(" ");
-      dockerArgs.push("bash", "-lc", innerCmd);
+      const envOverrides: Record<string, string> = { CLAUDECODE: "" };
+      if (options.env) {
+        Object.assign(envOverrides, options.env);
+      }
 
-      spawnCmd = dockerArgs;
-      // Host env for the docker CLI itself
+      spawnCmd = incusManager.buildExecCommand(options.containerName!, {
+        env: envOverrides,
+        interactive: true,
+        cmd: ["bash", "-lc", innerCmd],
+      });
       spawnEnv = { ...process.env, PATH: getEnrichedPath() };
-      spawnCwd = undefined; // cwd is set inside the container via -w at creation
+      spawnCwd = undefined; // cwd is set inside the container at creation
     } else {
       // Host-based spawn (original behavior)
       // On Windows, .cmd/.bat files cannot be spawned directly by Bun.spawn;
@@ -694,7 +680,7 @@ export class CliLauncher {
    * Codex listens on `ws://127.0.0.1:PORT`, Companion connects as a client.
    */
   private async spawnCodexWs(sessionId: string, info: SdkSessionInfo, options: LaunchOptions): Promise<void> {
-    const isContainerized = !!options.containerId;
+    const isContainerized = !!options.containerName;
     const connectTimeoutMs = Math.max(1000, parseInt(process.env.COMPANION_CODEX_WS_CONNECT_TIMEOUT_MS ?? "", 10) || 30000);
     const pongTimeoutMs = Math.max(1000, parseInt(process.env.COMPANION_CODEX_PONG_TIMEOUT_MS ?? "", 10) || 30000);
 
@@ -718,12 +704,12 @@ export class CliLauncher {
     let proxyConnectPort: number;
     if (isContainerized) {
       codexListenPort = CODEX_CONTAINER_WS_PORT;
-      const containerInfo = containerManager.getContainerById(options.containerId!);
+      const containerInfo = incusManager.getContainerByName(options.containerName!);
       const mappedPort = containerInfo?.portMappings.find((p) => p.containerPort === CODEX_CONTAINER_WS_PORT)?.hostPort;
       if (!mappedPort) {
         console.error(
           `[cli-launcher] Missing port mapping for Codex container port ${CODEX_CONTAINER_WS_PORT} ` +
-          `on container ${options.containerId}`,
+          `on container ${options.containerName}`,
         );
         info.state = "exited";
         info.exitCode = 1;
@@ -773,20 +759,23 @@ export class CliLauncher {
     let spawnCwd: string | undefined;
 
     if (isContainerized) {
-      // Run Codex inside the container via docker exec -d (detached, no stdin pipe needed)
-      const dockerArgs = ["docker", "exec", "-d"];
-      if (options.env) {
-        for (const [k, v] of Object.entries(options.env)) {
-          dockerArgs.push("-e", `${k}=${v}`);
-        }
-      }
-      dockerArgs.push("-e", "CLAUDECODE=");
-      dockerArgs.push("-e", "CODEX_HOME=/root/.codex");
-      dockerArgs.push(options.containerId!);
+      // Run Codex inside the container via incus exec (detached via nohup wrapper)
+      const container = incusManager.getContainerByName(options.containerName!);
+      const homeDir = container?.homeDir || "/home/code";
       const innerCmd = [binary, ...args].map(a => `'${a.replace(/'/g, "'\\''")}'`).join(" ");
-      dockerArgs.push("bash", "-lc", innerCmd);
+      const wrappedCmd = `nohup ${innerCmd} >/dev/null 2>&1 &`;
+      const envOverrides: Record<string, string> = {
+        CLAUDECODE: "",
+        CODEX_HOME: `${homeDir}/.codex`,
+      };
+      if (options.env) {
+        Object.assign(envOverrides, options.env);
+      }
 
-      spawnCmd = dockerArgs;
+      spawnCmd = incusManager.buildExecCommand(options.containerName!, {
+        env: envOverrides,
+        cmd: ["bash", "-lc", wrappedCmd],
+      });
       spawnEnv = { ...process.env, PATH: getEnrichedPath() };
       spawnCwd = undefined;
     } else {
@@ -875,7 +864,7 @@ export class CliLauncher {
     const adapter = new CodexAdapter(proxyProc, sessionId, {
       model: options.model,
       cwd: info.cwd,
-      executionCwd: options.containerId ? (info.containerCwd || "/workspace") : info.cwd,
+      executionCwd: options.containerName ? (info.containerCwd || "/workspace") : info.cwd,
       approvalMode: options.permissionMode,
       threadId: info.cliSessionId,
       sandbox: options.codexSandbox,
@@ -976,7 +965,7 @@ export class CliLauncher {
    * Unlike Claude Code (which connects back via WebSocket), Codex uses stdin/stdout.
    */
   private spawnCodexStdio(sessionId: string, info: SdkSessionInfo, options: LaunchOptions): void {
-    const isContainerized = !!options.containerId;
+    const isContainerized = !!options.containerName;
 
     let binary = options.codexBinary || "codex";
     if (!isContainerized) {
@@ -1010,22 +999,23 @@ export class CliLauncher {
     let spawnCwd: string | undefined;
 
     if (isContainerized) {
-      // Run Codex inside the container via docker exec -i (stdin required for JSON-RPC)
-      const dockerArgs = ["docker", "exec", "-i"];
-      if (options.env) {
-        for (const [k, v] of Object.entries(options.env)) {
-          dockerArgs.push("-e", `${k}=${v}`);
-        }
-      }
-      dockerArgs.push("-e", "CLAUDECODE=");
-      // Point Codex at /root/.codex where container-manager seeded auth/config
-      dockerArgs.push("-e", "CODEX_HOME=/root/.codex");
-      dockerArgs.push(options.containerId!);
-      // Use a login shell so ~/.bashrc is sourced and nvm/bun/deno/etc are on PATH
+      // Run Codex inside the container via incus exec (stdin required for JSON-RPC)
+      const container = incusManager.getContainerByName(options.containerName!);
+      const homeDir = container?.homeDir || "/home/code";
       const innerCmd = [binary, ...args].map(a => `'${a.replace(/'/g, "'\\''")}'`).join(" ");
-      dockerArgs.push("bash", "-lc", innerCmd);
+      const envOverrides: Record<string, string> = {
+        CLAUDECODE: "",
+        CODEX_HOME: `${homeDir}/.codex`,
+      };
+      if (options.env) {
+        Object.assign(envOverrides, options.env);
+      }
 
-      spawnCmd = dockerArgs;
+      spawnCmd = incusManager.buildExecCommand(options.containerName!, {
+        env: envOverrides,
+        interactive: true,
+        cmd: ["bash", "-lc", innerCmd],
+      });
       spawnEnv = { ...process.env, PATH: getEnrichedPath() };
       spawnCwd = undefined;
     } else {
@@ -1087,7 +1077,7 @@ export class CliLauncher {
     const adapter = new CodexAdapter(proc, sessionId, {
       model: options.model,
       cwd: info.cwd,
-      executionCwd: options.containerId ? (info.containerCwd || "/workspace") : info.cwd,
+      executionCwd: options.containerName ? (info.containerCwd || "/workspace") : info.cwd,
       approvalMode: options.permissionMode,
       threadId: info.cliSessionId,
       sandbox: options.codexSandbox,
