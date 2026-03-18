@@ -9,28 +9,28 @@ vi.mock("../sandbox-manager.js", () => ({
   deleteSandbox: vi.fn(() => false),
 }));
 
-// ─── Mock container-manager ───────────────────────────────────────────────
-vi.mock("../container-manager.js", () => ({
-  containerManager: {
-    checkDocker: vi.fn(() => true),
-    createContainer: vi.fn(() => ({ containerId: "test-container-123", name: "companion-test" })),
+// ─── Mock incus-manager ──────────────────────────────────────────────────
+vi.mock("../incus-manager.js", () => ({
+  incusManager: {
+    checkIncus: vi.fn(() => true),
+    createContainer: vi.fn(() => ({ name: "companion-test" })),
     copyWorkspaceToContainer: vi.fn(async () => {}),
     execInContainerAsync: vi.fn(async () => ({ exitCode: 0, output: "ok\n" })),
     removeContainer: vi.fn(),
   },
 }));
 
-// ─── Mock image-pull-manager ──────────────────────────────────────────────
-vi.mock("../image-pull-manager.js", () => ({
-  imagePullManager: {
+// ─── Mock image-provision-manager ─────────────────────────────────────────
+vi.mock("../image-provision-manager.js", () => ({
+  imageProvisionManager: {
     isReady: vi.fn(() => true),
   },
 }));
 
 import { Hono } from "hono";
 import * as sandboxManager from "../sandbox-manager.js";
-import { containerManager } from "../container-manager.js";
-import { imagePullManager } from "../image-pull-manager.js";
+import { incusManager } from "../incus-manager.js";
+import { imageProvisionManager } from "../image-provision-manager.js";
 import { registerSandboxRoutes } from "./sandbox-routes.js";
 
 // ─── Test setup ───────────────────────────────────────────────────────────
@@ -302,13 +302,13 @@ describe("DELETE /api/sandboxes/:slug", () => {
 
 describe("POST /api/sandboxes/:slug/test-init", () => {
   it("executes the init script in an ephemeral container and returns success", async () => {
-    // Happy path: sandbox exists, has init script, Docker available, image ready.
+    // Happy path: sandbox exists, has init script, Incus available, image ready.
     // Should create container, copy workspace, exec script, cleanup.
     const sandbox = makeSandbox({ initScript: "echo hello" });
     vi.mocked(sandboxManager.getSandbox).mockReturnValue(sandbox as any);
-    vi.mocked(containerManager.checkDocker).mockReturnValue(true);
-    vi.mocked(imagePullManager.isReady).mockReturnValue(true);
-    vi.mocked(containerManager.execInContainerAsync).mockResolvedValue({
+    vi.mocked(incusManager.checkIncus).mockReturnValue(true);
+    vi.mocked(imageProvisionManager.isReady).mockReturnValue(true);
+    vi.mocked(incusManager.execInContainerAsync).mockResolvedValue({
       exitCode: 0,
       output: "hello\n",
     });
@@ -326,7 +326,7 @@ describe("POST /api/sandboxes/:slug/test-init", () => {
     expect(json.output).toBe("hello\n");
 
     // Container should be cleaned up
-    expect(containerManager.removeContainer).toHaveBeenCalled();
+    expect(incusManager.removeContainer).toHaveBeenCalled();
   });
 
   it("returns 404 when sandbox not found", async () => {
@@ -372,10 +372,10 @@ describe("POST /api/sandboxes/:slug/test-init", () => {
     expect(json.error).toMatch(/cwd/i);
   });
 
-  it("returns 503 when Docker is not available", async () => {
+  it("returns 503 when Incus is not available", async () => {
     const sandbox = makeSandbox({ initScript: "echo test" });
     vi.mocked(sandboxManager.getSandbox).mockReturnValue(sandbox as any);
-    vi.mocked(containerManager.checkDocker).mockReturnValue(false);
+    vi.mocked(incusManager.checkIncus).mockReturnValue(false);
 
     const res = await app.request("/api/sandboxes/my-sandbox/test-init", {
       method: "POST",
@@ -385,14 +385,14 @@ describe("POST /api/sandboxes/:slug/test-init", () => {
 
     expect(res.status).toBe(503);
     const json = await res.json();
-    expect(json.error).toMatch(/docker/i);
+    expect(json.error).toMatch(/incus/i);
   });
 
-  it("returns 503 when Docker image is not ready", async () => {
+  it("returns 503 when Incus image is not ready", async () => {
     const sandbox = makeSandbox({ initScript: "echo test" });
     vi.mocked(sandboxManager.getSandbox).mockReturnValue(sandbox as any);
-    vi.mocked(containerManager.checkDocker).mockReturnValue(true);
-    vi.mocked(imagePullManager.isReady).mockReturnValue(false);
+    vi.mocked(incusManager.checkIncus).mockReturnValue(true);
+    vi.mocked(imageProvisionManager.isReady).mockReturnValue(false);
 
     const res = await app.request("/api/sandboxes/my-sandbox/test-init", {
       method: "POST",
@@ -409,9 +409,9 @@ describe("POST /api/sandboxes/:slug/test-init", () => {
     // The init script failed — report the exit code and captured output
     const sandbox = makeSandbox({ initScript: "exit 1" });
     vi.mocked(sandboxManager.getSandbox).mockReturnValue(sandbox as any);
-    vi.mocked(containerManager.checkDocker).mockReturnValue(true);
-    vi.mocked(imagePullManager.isReady).mockReturnValue(true);
-    vi.mocked(containerManager.execInContainerAsync).mockResolvedValue({
+    vi.mocked(incusManager.checkIncus).mockReturnValue(true);
+    vi.mocked(imageProvisionManager.isReady).mockReturnValue(true);
+    vi.mocked(incusManager.execInContainerAsync).mockResolvedValue({
       exitCode: 1,
       output: "command not found\n",
     });
@@ -429,16 +429,16 @@ describe("POST /api/sandboxes/:slug/test-init", () => {
     expect(json.output).toContain("command not found");
 
     // Container should still be cleaned up
-    expect(containerManager.removeContainer).toHaveBeenCalled();
+    expect(incusManager.removeContainer).toHaveBeenCalled();
   });
 
   it("cleans up container even when execInContainerAsync throws", async () => {
     // Ensures the finally block removes the container on unexpected errors
     const sandbox = makeSandbox({ initScript: "echo crash" });
     vi.mocked(sandboxManager.getSandbox).mockReturnValue(sandbox as any);
-    vi.mocked(containerManager.checkDocker).mockReturnValue(true);
-    vi.mocked(imagePullManager.isReady).mockReturnValue(true);
-    vi.mocked(containerManager.execInContainerAsync).mockRejectedValue(
+    vi.mocked(incusManager.checkIncus).mockReturnValue(true);
+    vi.mocked(imageProvisionManager.isReady).mockReturnValue(true);
+    vi.mocked(incusManager.execInContainerAsync).mockRejectedValue(
       new Error("Container crashed"),
     );
 
@@ -454,7 +454,7 @@ describe("POST /api/sandboxes/:slug/test-init", () => {
     expect(json.output).toBe("Container crashed");
 
     // Container should be cleaned up even on error
-    expect(containerManager.removeContainer).toHaveBeenCalled();
+    expect(incusManager.removeContainer).toHaveBeenCalled();
   });
 
   it("uses body initScript over stored initScript when provided", async () => {
@@ -462,9 +462,9 @@ describe("POST /api/sandboxes/:slug/test-init", () => {
     // can test unsaved draft content without persisting first.
     const sandbox = makeSandbox({ initScript: "stored script" });
     vi.mocked(sandboxManager.getSandbox).mockReturnValue(sandbox as any);
-    vi.mocked(containerManager.checkDocker).mockReturnValue(true);
-    vi.mocked(imagePullManager.isReady).mockReturnValue(true);
-    vi.mocked(containerManager.execInContainerAsync).mockResolvedValue({
+    vi.mocked(incusManager.checkIncus).mockReturnValue(true);
+    vi.mocked(imageProvisionManager.isReady).mockReturnValue(true);
+    vi.mocked(incusManager.execInContainerAsync).mockResolvedValue({
       exitCode: 0,
       output: "draft ok\n",
     });
@@ -477,8 +477,8 @@ describe("POST /api/sandboxes/:slug/test-init", () => {
 
     expect(res.status).toBe(200);
     // Should exec the body initScript, not the stored one
-    expect(containerManager.execInContainerAsync).toHaveBeenCalledWith(
-      "test-container-123",
+    expect(incusManager.execInContainerAsync).toHaveBeenCalledWith(
+      "companion-test",
       ["sh", "-lc", "echo draft"],
       expect.any(Object),
     );
@@ -489,9 +489,9 @@ describe("POST /api/sandboxes/:slug/test-init", () => {
     // traversal sequences like ../../etc.
     const sandbox = makeSandbox({ initScript: "echo test" });
     vi.mocked(sandboxManager.getSandbox).mockReturnValue(sandbox as any);
-    vi.mocked(containerManager.checkDocker).mockReturnValue(true);
-    vi.mocked(imagePullManager.isReady).mockReturnValue(true);
-    vi.mocked(containerManager.execInContainerAsync).mockResolvedValue({
+    vi.mocked(incusManager.checkIncus).mockReturnValue(true);
+    vi.mocked(imageProvisionManager.isReady).mockReturnValue(true);
+    vi.mocked(incusManager.execInContainerAsync).mockResolvedValue({
       exitCode: 0,
       output: "ok\n",
     });
@@ -504,7 +504,7 @@ describe("POST /api/sandboxes/:slug/test-init", () => {
 
     expect(res.status).toBe(200);
     // The cwd passed to createContainer should be the resolved path
-    expect(containerManager.createContainer).toHaveBeenCalledWith(
+    expect(incusManager.createContainer).toHaveBeenCalledWith(
       expect.any(String),
       "/etc",
       expect.any(Object),

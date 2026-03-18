@@ -36,7 +36,7 @@ vi.mock("./settings-manager.js", () => ({
 
 import { WsBridge, type SocketData } from "./ws-bridge.js";
 import { SessionStore } from "./session-store.js";
-import { containerManager } from "./container-manager.js";
+import { incusManager } from "./incus-manager.js";
 import { companionBus } from "./event-bus.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -381,7 +381,7 @@ describe("CLI handlers", () => {
     // Per the SDK protocol, the first user message triggers system.init,
     // so queued messages must be flushed as soon as the CLI WebSocket connects
     // (not deferred until system.init, which would create a deadlock for
-    // slow-starting sessions like Docker containers).
+    // slow-starting sessions like Incus containers).
     const browser = makeBrowserSocket("s1");
     bridge.handleBrowserOpen(browser, "s1");
 
@@ -623,10 +623,9 @@ describe("CLI handlers", () => {
 
   it("handleCLIMessage: resolves git info from container for containerized sessions", async () => {
     bridge.markContainerized("s1", "/Users/stan/Dev/myproject");
-    const getContainerSpy = vi.spyOn(containerManager, "getContainer").mockReturnValue({
-      containerId: "abc123def456",
+    const getContainerSpy = vi.spyOn(incusManager, "getContainer").mockReturnValue({
       name: "companion-test",
-      image: "the-companion:latest",
+      image: "companion-incus",
       portMappings: [],
       hostCwd: "/Users/stan/Dev/myproject",
       containerCwd: "/workspace",
@@ -634,7 +633,7 @@ describe("CLI handlers", () => {
     });
 
     mockExecSync.mockImplementation((cmd: string) => {
-      if (!cmd.startsWith("docker exec abc123def456 sh -lc ")) {
+      if (!cmd.startsWith("incus exec companion-test -- sh -lc ")) {
         throw new Error(`unexpected command: ${cmd}`);
       }
       if (cmd.includes("--abbrev-ref HEAD")) return "container-branch\n";
@@ -660,10 +659,9 @@ describe("CLI handlers", () => {
 
   it("handleCLIMessage: maps nested container repo_root paths back to host paths", async () => {
     bridge.markContainerized("s1", "/Users/stan/Dev/myproject");
-    const getContainerSpy = vi.spyOn(containerManager, "getContainer").mockReturnValue({
-      containerId: "abc123def456",
+    const getContainerSpy = vi.spyOn(incusManager, "getContainer").mockReturnValue({
       name: "companion-test",
-      image: "the-companion:latest",
+      image: "companion-incus",
       portMappings: [],
       hostCwd: "/Users/stan/Dev/myproject",
       containerCwd: "/workspace",
@@ -671,7 +669,7 @@ describe("CLI handlers", () => {
     });
 
     mockExecSync.mockImplementation((cmd: string) => {
-      if (!cmd.startsWith("docker exec abc123def456 sh -lc ")) {
+      if (!cmd.startsWith("incus exec companion-test -- sh -lc ")) {
         throw new Error(`unexpected command: ${cmd}`);
       }
       if (cmd.includes("--abbrev-ref HEAD")) return "container-branch\n";

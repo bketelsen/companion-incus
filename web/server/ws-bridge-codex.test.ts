@@ -132,7 +132,7 @@ describe("attachCodexAdapterHandlers", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
   });
@@ -1116,7 +1116,7 @@ describe("attachCodexAdapterHandlers", () => {
         aiValidationAutoDeny: true,
         publicUrl: "",
         updateChannel: "stable",
-        dockerAutoUpdate: false,
+        autoRebuildImage: false,
         updatedAt: 0,
       });
     }
@@ -1290,7 +1290,7 @@ describe("attachCodexAdapterHandlers", () => {
         aiValidationAutoDeny: true,
         publicUrl: "",
         updateChannel: "stable",
-        dockerAutoUpdate: false,
+        autoRebuildImage: false,
         updatedAt: 0,
       });
 
@@ -1334,7 +1334,7 @@ describe("attachCodexAdapterHandlers", () => {
         aiValidationAutoDeny: true,
         publicUrl: "",
         updateChannel: "stable",
-        dockerAutoUpdate: false,
+        autoRebuildImage: false,
         updatedAt: 0,
       });
 
@@ -1443,7 +1443,7 @@ describe("attachCodexAdapterHandlers", () => {
         aiValidationAutoDeny: true,
         publicUrl: "",
         updateChannel: "stable",
-        dockerAutoUpdate: false,
+        autoRebuildImage: false,
         updatedAt: 0,
       });
 
@@ -1571,7 +1571,7 @@ describe("attachCodexAdapterHandlers", () => {
         aiValidationAutoDeny: false,  // disabled
         publicUrl: "",
         updateChannel: "stable",
-        dockerAutoUpdate: false,
+        autoRebuildImage: false,
         updatedAt: 0,
       });
 

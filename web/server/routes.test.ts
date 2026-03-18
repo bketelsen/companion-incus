@@ -17,7 +17,7 @@ vi.mock("./env-manager.js", () => ({
   deleteEnv: vi.fn(),
 }));
 
-// Mock sandbox-manager — sandboxes now own Docker/container config (separated from envs)
+// Mock sandbox-manager — sandboxes now own Incus/container config (separated from envs)
 vi.mock("./sandbox-manager.js", () => ({
   listSandboxes: vi.fn(() => []),
   getSandbox: vi.fn(() => null),
@@ -97,7 +97,7 @@ vi.mock("./settings-manager.js", () => ({
     aiValidationAutoDeny: false,
     publicUrl: "",
     updateChannel: "stable",
-    dockerAutoUpdate: false,
+    autoRebuildImage: false,
     updatedAt: 0,
   })),
   updateSettings: vi.fn((patch) => ({
@@ -121,7 +121,7 @@ vi.mock("./settings-manager.js", () => ({
     aiValidationAutoDeny: patch.aiValidationAutoDeny ?? false,
     publicUrl: patch.publicUrl ?? "",
     updateChannel: patch.updateChannel ?? "stable",
-    dockerAutoUpdate: patch.dockerAutoUpdate ?? false,
+    autoRebuildImage: patch.autoRebuildImage ?? false,
     updatedAt: Date.now(),
   })),
 }));
@@ -232,7 +232,7 @@ vi.mock("./update-checker.js", () => ({
   setUpdateInProgress: mockSetUpdateInProgress,
 }));
 
-// Mock image-pull-manager — default: images are always ready
+// Mock image-provision-manager — default: images are always ready
 const mockImagePullIsReady = vi.hoisted(() => vi.fn(() => true));
 interface MockImagePullState {
   image: string;
@@ -254,13 +254,13 @@ const mockImagePullWaitForReady = vi.hoisted(() => vi.fn(async () => true));
 const mockImagePullPull = vi.hoisted(() => vi.fn());
 const mockImagePullOnProgress = vi.hoisted(() => vi.fn(() => () => {}));
 
-vi.mock("./image-pull-manager.js", () => ({
-  imagePullManager: {
+vi.mock("./image-provision-manager.js", () => ({
+  imageProvisionManager: {
     isReady: mockImagePullIsReady,
     getState: mockImagePullGetState,
     ensureImage: mockImagePullEnsureImage,
     waitForReady: mockImagePullWaitForReady,
-    pull: mockImagePullPull,
+    rebuild: mockImagePullPull,
     onProgress: mockImagePullOnProgress,
   },
 }));
@@ -277,7 +277,7 @@ import * as sessionNames from "./session-names.js";
 import * as settingsManager from "./settings-manager.js";
 import * as linearProjectManager from "./linear-project-manager.js";
 import { resolveApiKey } from "./linear-connections.js";
-import { containerManager } from "./container-manager.js";
+import { incusManager } from "./incus-manager.js";
 
 // ─── Mock factories ──────────────────────────────────────────────────────────
 
@@ -378,8 +378,8 @@ beforeEach(() => {
   app.route("/api", createRoutes(orchestrator, launcher, bridge, sessionStore, tracker, terminalManager as any));
 
   // Default no-op mocks for container workspace isolation (called during container session creation)
-  vi.spyOn(containerManager, "copyWorkspaceToContainer").mockResolvedValue(undefined);
-  vi.spyOn(containerManager, "reseedGitAuth").mockImplementation(() => {});
+  vi.spyOn(incusManager, "copyWorkspaceToContainer").mockResolvedValue(undefined);
+  vi.spyOn(incusManager, "reseedGitAuth").mockImplementation(() => {});
 
   // Default: images are always ready via pull manager
   mockImagePullIsReady.mockReturnValue(true);
@@ -503,7 +503,7 @@ describe("POST /api/sessions/create", () => {
   it("returns 503 from orchestrator on container startup failure", async () => {
     orchestrator.createSession.mockResolvedValue({
       ok: false,
-      error: "Docker is required but container startup failed",
+      error: "Incus is required but container startup failed",
       status: 503,
     });
 
@@ -515,7 +515,7 @@ describe("POST /api/sessions/create", () => {
 
     expect(res.status).toBe(503);
     const json = await res.json();
-    expect(json.error).toContain("Docker is required");
+    expect(json.error).toContain("Incus is required");
   });
 
   it("handles empty request body gracefully", async () => {
@@ -784,20 +784,19 @@ describe("POST /api/sessions/:id/editor/start", () => {
       sessionId: "s1",
       state: "running",
       cwd: "/repo",
-      containerId: "cid-1",
+      containerName: "companion-cid-1",
     });
-    vi.spyOn(containerManager, "getContainer").mockReturnValue({
-      containerId: "cid-1",
+    vi.spyOn(incusManager, "getContainer").mockReturnValue({
       name: "companion-s1",
-      image: "the-companion:latest",
+      image: "companion-incus",
       portMappings: [{ containerPort: 13337, hostPort: 49152 }],
       hostCwd: "/repo",
       containerCwd: "/workspace",
       state: "running",
     });
-    vi.spyOn(containerManager, "hasBinaryInContainer").mockReturnValue(true);
-    vi.spyOn(containerManager, "isContainerAlive").mockReturnValue("running");
-    const execSpy = vi.spyOn(containerManager, "execInContainer").mockReturnValue("");
+    vi.spyOn(incusManager, "hasBinaryInContainer").mockReturnValue(true);
+    vi.spyOn(incusManager, "isContainerAlive").mockReturnValue("running");
+    const execSpy = vi.spyOn(incusManager, "execInContainer").mockReturnValue("");
     // Mock fetch so the readiness poll resolves immediately instead of timing out
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("ok", { status: 200 }));
 
@@ -1136,7 +1135,7 @@ describe("GET /api/sessions/:id/archive-info", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
     const res = await app.request("/api/sessions/s1/archive-info", { method: "GET" });
@@ -1435,47 +1434,47 @@ describe("Saved prompts API", () => {
 describe("GET /api/images/:tag/status", () => {
   it("returns the pull state for an image", async () => {
     mockImagePullGetState.mockReturnValueOnce({
-      image: "the-companion:latest",
+      image: "companion-incus",
       status: "ready",
       progress: [],
     });
 
-    const res = await app.request("/api/images/the-companion%3Alatest/status");
+    const res = await app.request("/api/images/companion-incus/status");
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.image).toBe("the-companion:latest");
+    expect(json.image).toBe("companion-incus");
     expect(json.status).toBe("ready");
   });
 });
 
 describe("POST /api/images/:tag/pull", () => {
   it("triggers a pull and returns the current state", async () => {
-    vi.spyOn(containerManager, "checkDocker").mockReturnValue(true);
+    vi.spyOn(incusManager, "checkIncus").mockReturnValue(true);
     mockImagePullGetState.mockReturnValueOnce({
-      image: "the-companion:latest",
+      image: "companion-incus",
       status: "pulling",
       progress: [],
       startedAt: Date.now(),
     });
 
-    const res = await app.request("/api/images/the-companion%3Alatest/pull", {
+    const res = await app.request("/api/images/companion-incus/pull", {
       method: "POST",
     });
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.ok).toBe(true);
-    expect(mockImagePullPull).toHaveBeenCalledWith("the-companion:latest");
+    expect(mockImagePullPull).toHaveBeenCalledWith("companion-incus");
   });
 
-  it("returns 503 when Docker is not available", async () => {
-    vi.spyOn(containerManager, "checkDocker").mockReturnValue(false);
+  it("returns 503 when Incus is not available", async () => {
+    vi.spyOn(incusManager, "checkIncus").mockReturnValue(false);
 
-    const res = await app.request("/api/images/the-companion%3Alatest/pull", {
+    const res = await app.request("/api/images/companion-incus/pull", {
       method: "POST",
     });
     expect(res.status).toBe(503);
     const json = await res.json();
-    expect(json.error).toContain("Docker is not available");
+    expect(json.error).toContain("Incus is not available");
   });
 });
 
@@ -1504,7 +1503,7 @@ describe("GET /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 123,
     });
 
@@ -1529,7 +1528,7 @@ describe("GET /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
     });
   });
 
@@ -1555,7 +1554,7 @@ describe("GET /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 123,
     });
 
@@ -1580,7 +1579,7 @@ describe("GET /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
     });
   });
 
@@ -1607,7 +1606,7 @@ describe("GET /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "https://example.com",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 100,
     });
 
@@ -1642,7 +1641,7 @@ describe("PUT /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 456,
     });
 
@@ -1690,7 +1689,7 @@ describe("PUT /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
     });
   });
 
@@ -1716,7 +1715,7 @@ describe("PUT /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 789,
     });
 
@@ -1760,7 +1759,7 @@ describe("PUT /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 999,
     });
 
@@ -1867,7 +1866,7 @@ describe("PUT /api/settings", () => {
       aiValidationAutoDeny: false,
       publicUrl: "https://my-server.com",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 500,
     });
 
@@ -2043,7 +2042,7 @@ describe("GET /api/linear/issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
     vi.mocked(resolveApiKey).mockReturnValue(null);
@@ -2076,7 +2075,7 @@ describe("GET /api/linear/issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
 
@@ -2162,7 +2161,7 @@ describe("GET /api/linear/issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
 
@@ -2255,7 +2254,7 @@ describe("GET /api/linear/issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
 
@@ -2313,7 +2312,7 @@ describe("GET /api/linear/connection", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
     vi.mocked(resolveApiKey).mockReturnValue(null);
@@ -2346,7 +2345,7 @@ describe("GET /api/linear/connection", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
 
@@ -2401,7 +2400,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
 
@@ -2438,7 +2437,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
 
@@ -2474,7 +2473,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
     vi.mocked(resolveApiKey).mockReturnValue(null);
@@ -2512,7 +2511,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
 
@@ -2584,7 +2583,7 @@ describe("POST /api/linear/issues/:id/transition", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
 
@@ -2635,7 +2634,7 @@ describe("GET /api/linear/projects", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
     vi.mocked(resolveApiKey).mockReturnValue(null);
@@ -2668,7 +2667,7 @@ describe("GET /api/linear/projects", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
 
@@ -2731,7 +2730,7 @@ describe("GET /api/linear/project-issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
     vi.mocked(resolveApiKey).mockReturnValue(null);
@@ -2764,7 +2763,7 @@ describe("GET /api/linear/project-issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
 
@@ -2842,7 +2841,7 @@ describe("GET /api/linear/project-issues", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
 
@@ -3758,7 +3757,7 @@ describe("POST /api/sessions/create-stream", () => {
       branch: "feat/new",
       useWorktree: true,
       sandboxEnabled: true,
-      sandboxSlug: "docker",
+      sandboxSlug: "incus",
     };
 
     const res = await app.request("/api/sessions/create-stream", {
@@ -3832,10 +3831,10 @@ describe("POST /api/auth/verify", () => {
 // ---------------------------------------------------------------------------
 
 describe("GET /api/containers/status", () => {
-  it("returns docker availability and version", async () => {
-    // containerManager is already imported and its methods can be spied on
-    const checkSpy = vi.spyOn(containerManager, "checkDocker").mockReturnValue(true);
-    const versionSpy = vi.spyOn(containerManager, "getDockerVersion").mockReturnValue("24.0.7");
+  it("returns incus availability and version", async () => {
+    // incusManager is already imported and its methods can be spied on
+    const checkSpy = vi.spyOn(incusManager, "checkIncus").mockReturnValue(true);
+    const versionSpy = vi.spyOn(incusManager, "getIncusVersion").mockReturnValue("24.0.7");
 
     const res = await app.request("/api/containers/status");
     expect(res.status).toBe(200);
@@ -3847,8 +3846,8 @@ describe("GET /api/containers/status", () => {
     versionSpy.mockRestore();
   });
 
-  it("returns null version when docker is unavailable", async () => {
-    const checkSpy = vi.spyOn(containerManager, "checkDocker").mockReturnValue(false);
+  it("returns null version when incus is unavailable", async () => {
+    const checkSpy = vi.spyOn(incusManager, "checkIncus").mockReturnValue(false);
 
     const res = await app.request("/api/containers/status");
     expect(res.status).toBe(200);
@@ -3862,7 +3861,7 @@ describe("GET /api/containers/status", () => {
 
 describe("GET /api/containers/images", () => {
   it("returns list of available images", async () => {
-    const spy = vi.spyOn(containerManager, "listImages").mockReturnValue(["node:22", "ubuntu:latest"]);
+    const spy = vi.spyOn(incusManager, "listImages").mockReturnValue(["node:22", "ubuntu:latest"]);
 
     const res = await app.request("/api/containers/images");
     expect(res.status).toBe(200);
@@ -3941,9 +3940,9 @@ describe("POST /api/sessions/:id/processes/:taskId/kill", () => {
     expect(res.status).toBe(503);
   });
 
-  it("kills process in container when session has containerId", async () => {
-    launcher.getSession.mockReturnValue({ pid: 1234, containerId: "cid123" });
-    const execSpy = vi.spyOn(containerManager, "execInContainer").mockReturnValue("");
+  it("kills process in container when session has containerName", async () => {
+    launcher.getSession.mockReturnValue({ pid: 1234, containerName: "companion-cid123" });
+    const execSpy = vi.spyOn(incusManager, "execInContainer").mockReturnValue("");
 
     const res = await app.request("/api/sessions/sess-1/processes/abcdef/kill", {
       method: "POST",
@@ -3996,9 +3995,9 @@ describe("POST /api/sessions/:id/processes/kill-all", () => {
     expect(data.results[1].error).toContain("Invalid task ID");
   });
 
-  it("kills processes in container when session has containerId", async () => {
-    launcher.getSession.mockReturnValue({ pid: 1234, containerId: "cid123" });
-    const execSpy = vi.spyOn(containerManager, "execInContainer").mockReturnValue("");
+  it("kills processes in container when session has containerName", async () => {
+    launcher.getSession.mockReturnValue({ pid: 1234, containerName: "companion-cid123" });
+    const execSpy = vi.spyOn(incusManager, "execInContainer").mockReturnValue("");
 
     const res = await app.request("/api/sessions/sess-1/processes/kill-all", {
       method: "POST",
@@ -4056,9 +4055,9 @@ describe("POST /api/sessions/:id/processes/system/:pid/kill", () => {
     expect(data.error).toContain("Use the session kill endpoint");
   });
 
-  it("kills process in container when session has containerId", async () => {
-    launcher.getSession.mockReturnValue({ pid: 1234, containerId: "cid123" });
-    const execSpy = vi.spyOn(containerManager, "execInContainer").mockReturnValue("");
+  it("kills process in container when session has containerName", async () => {
+    launcher.getSession.mockReturnValue({ pid: 1234, containerName: "companion-cid123" });
+    const execSpy = vi.spyOn(incusManager, "execInContainer").mockReturnValue("");
 
     const res = await app.request("/api/sessions/sess-1/processes/system/9999/kill", {
       method: "POST",
@@ -4115,9 +4114,9 @@ describe("POST /api/sessions/:id/browser/start", () => {
       sessionId: "s1",
       state: "running",
       cwd: "/repo",
-      containerId: "cid-1",
+      containerName: "companion-cid-1",
     });
-    vi.spyOn(containerManager, "getContainer").mockReturnValue(undefined);
+    vi.spyOn(incusManager, "getContainer").mockReturnValue(undefined);
 
     const res = await app.request("/api/sessions/s1/browser/start", { method: "POST" });
 
@@ -4135,20 +4134,19 @@ describe("POST /api/sessions/:id/browser/start", () => {
       sessionId: "s1",
       state: "running",
       cwd: "/repo",
-      containerId: "cid-1",
+      containerName: "companion-cid-1",
     });
-    vi.spyOn(containerManager, "getContainer").mockReturnValue({
-      containerId: "cid-1",
+    vi.spyOn(incusManager, "getContainer").mockReturnValue({
       name: "companion-s1",
-      image: "the-companion:latest",
+      image: "companion-incus",
       portMappings: [{ containerPort: 6080, hostPort: 49200 }],
       hostCwd: "/repo",
       containerCwd: "/workspace",
       state: "running",
     });
-    vi.spyOn(containerManager, "isContainerAlive").mockReturnValue("running");
+    vi.spyOn(incusManager, "isContainerAlive").mockReturnValue("running");
     // Xvfb not found, websockify found
-    vi.spyOn(containerManager, "hasBinaryInContainer").mockImplementation(
+    vi.spyOn(incusManager, "hasBinaryInContainer").mockImplementation(
       (_cid: string, bin: string) => bin !== "Xvfb",
     );
 
@@ -4168,20 +4166,19 @@ describe("POST /api/sessions/:id/browser/start", () => {
       sessionId: "s1",
       state: "running",
       cwd: "/repo",
-      containerId: "cid-1",
+      containerName: "companion-cid-1",
     });
-    vi.spyOn(containerManager, "getContainer").mockReturnValue({
-      containerId: "cid-1",
+    vi.spyOn(incusManager, "getContainer").mockReturnValue({
       name: "companion-s1",
-      image: "the-companion:latest",
+      image: "companion-incus",
       portMappings: [{ containerPort: 6080, hostPort: 49200 }],
       hostCwd: "/repo",
       containerCwd: "/workspace",
       state: "running",
     });
-    vi.spyOn(containerManager, "hasBinaryInContainer").mockReturnValue(true);
-    vi.spyOn(containerManager, "isContainerAlive").mockReturnValue("running");
-    const execSpy = vi.spyOn(containerManager, "execInContainerAsync").mockResolvedValue({ exitCode: 0, output: "" });
+    vi.spyOn(incusManager, "hasBinaryInContainer").mockReturnValue(true);
+    vi.spyOn(incusManager, "isContainerAlive").mockReturnValue("running");
+    const execSpy = vi.spyOn(incusManager, "execInContainerAsync").mockResolvedValue({ exitCode: 0, output: "" });
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("ok", { status: 200 }));
 
     const res = await app.request("/api/sessions/s1/browser/start", { method: "POST" });
@@ -4206,20 +4203,19 @@ describe("POST /api/sessions/:id/browser/start", () => {
       sessionId: "s1",
       state: "running",
       cwd: "/repo",
-      containerId: "cid-1",
+      containerName: "companion-cid-1",
     });
-    vi.spyOn(containerManager, "getContainer").mockReturnValue({
-      containerId: "cid-1",
+    vi.spyOn(incusManager, "getContainer").mockReturnValue({
       name: "companion-s1",
-      image: "the-companion:latest",
+      image: "companion-incus",
       portMappings: [{ containerPort: 6080, hostPort: 49200 }],
       hostCwd: "/repo",
       containerCwd: "/workspace",
       state: "running",
     });
-    vi.spyOn(containerManager, "hasBinaryInContainer").mockReturnValue(true);
-    vi.spyOn(containerManager, "isContainerAlive").mockReturnValue("running");
-    vi.spyOn(containerManager, "execInContainerAsync").mockResolvedValue({ exitCode: 0, output: "" });
+    vi.spyOn(incusManager, "hasBinaryInContainer").mockReturnValue(true);
+    vi.spyOn(incusManager, "isContainerAlive").mockReturnValue("running");
+    vi.spyOn(incusManager, "execInContainerAsync").mockResolvedValue({ exitCode: 0, output: "" });
     // Simulate noVNC never becoming ready — all fetches throw
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("connection refused"));
 
@@ -4240,20 +4236,19 @@ describe("POST /api/sessions/:id/browser/start", () => {
       sessionId: "s1",
       state: "running",
       cwd: "/repo",
-      containerId: "cid-1",
+      containerName: "companion-cid-1",
     });
-    vi.spyOn(containerManager, "getContainer").mockReturnValue({
-      containerId: "cid-1",
+    vi.spyOn(incusManager, "getContainer").mockReturnValue({
       name: "companion-s1",
-      image: "the-companion:latest",
+      image: "companion-incus",
       portMappings: [{ containerPort: 6080, hostPort: 49200 }],
       hostCwd: "/repo",
       containerCwd: "/workspace",
       state: "running",
     });
-    vi.spyOn(containerManager, "hasBinaryInContainer").mockReturnValue(true);
-    vi.spyOn(containerManager, "isContainerAlive").mockReturnValue("running");
-    vi.spyOn(containerManager, "execInContainerAsync").mockResolvedValue({ exitCode: 0, output: "" });
+    vi.spyOn(incusManager, "hasBinaryInContainer").mockReturnValue(true);
+    vi.spyOn(incusManager, "isContainerAlive").mockReturnValue("running");
+    vi.spyOn(incusManager, "execInContainerAsync").mockResolvedValue({ exitCode: 0, output: "" });
 
     const res = await app.request("/api/sessions/s1/browser/start", {
       method: "POST",
@@ -4302,7 +4297,7 @@ describe("POST /api/sessions/:id/browser/navigate", () => {
       sessionId: "s1",
       state: "running",
       cwd: "/repo",
-      containerId: "cid-1",
+      containerName: "companion-cid-1",
     });
 
     const res = await app.request("/api/sessions/s1/browser/navigate", {
@@ -4321,18 +4316,17 @@ describe("POST /api/sessions/:id/browser/navigate", () => {
       sessionId: "s1",
       state: "running",
       cwd: "/repo",
-      containerId: "cid-1",
+      containerName: "companion-cid-1",
     });
-    vi.spyOn(containerManager, "getContainer").mockReturnValue({
-      containerId: "cid-1",
+    vi.spyOn(incusManager, "getContainer").mockReturnValue({
       name: "companion-s1",
-      image: "the-companion:latest",
+      image: "companion-incus",
       portMappings: [],
       hostCwd: "/repo",
       containerCwd: "/workspace",
       state: "running",
     });
-    const execSpy = vi.spyOn(containerManager, "execInContainerAsync").mockResolvedValue({ exitCode: 0, output: "" });
+    const execSpy = vi.spyOn(incusManager, "execInContainerAsync").mockResolvedValue({ exitCode: 0, output: "" });
 
     const res = await app.request("/api/sessions/s1/browser/navigate", {
       method: "POST",
@@ -4377,12 +4371,11 @@ describe("GET /api/sessions/:id/browser/proxy/*", () => {
       sessionId: "s1",
       state: "running",
       cwd: "/repo",
-      containerId: "cid-1",
+      containerName: "companion-cid-1",
     });
-    vi.spyOn(containerManager, "getContainer").mockReturnValue({
-      containerId: "cid-1",
+    vi.spyOn(incusManager, "getContainer").mockReturnValue({
       name: "companion-s1",
-      image: "the-companion:latest",
+      image: "companion-incus",
       portMappings: [{ containerPort: 6080, hostPort: 49200 }],
       hostCwd: "/repo",
       containerCwd: "/workspace",

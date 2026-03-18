@@ -9,21 +9,21 @@ vi.mock("../env-manager.js", () => ({
   deleteEnv: vi.fn(() => false),
 }));
 
-// ─── Mock container-manager ────────────────────────────────────────────────
-vi.mock("../container-manager.js", () => ({
-  containerManager: {
-    checkDocker: vi.fn(() => true),
+// ─── Mock incus-manager ───────────────────────────────────────────────────
+vi.mock("../incus-manager.js", () => ({
+  incusManager: {
+    checkIncus: vi.fn(() => true),
     buildImageStreaming: vi.fn(async () => ({ success: true, log: "Built" })),
     buildImage: vi.fn(() => "ok"),
     imageExists: vi.fn(() => false),
   },
 }));
 
-// ─── Mock image-pull-manager ───────────────────────────────────────────────
-vi.mock("../image-pull-manager.js", () => ({
-  imagePullManager: {
+// ─── Mock image-provision-manager ─────────────────────────────────────────
+vi.mock("../image-provision-manager.js", () => ({
+  imageProvisionManager: {
     getState: vi.fn((tag: string) => ({ image: tag, status: "idle", progress: [] })),
-    pull: vi.fn(),
+    rebuild: vi.fn(),
   },
 }));
 
@@ -32,8 +32,8 @@ vi.mock("node:fs", () => ({ existsSync: vi.fn(() => false) }));
 
 import { Hono } from "hono";
 import * as envManager from "../env-manager.js";
-import { containerManager } from "../container-manager.js";
-import { imagePullManager } from "../image-pull-manager.js";
+import { incusManager } from "../incus-manager.js";
+import { imageProvisionManager } from "../image-provision-manager.js";
 import { existsSync } from "node:fs";
 import { registerEnvRoutes } from "./env-routes.js";
 
@@ -252,16 +252,16 @@ describe("DELETE /api/envs/:slug", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// POST /api/docker/build-base
+// POST /api/incus/build-base
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe("POST /api/docker/build-base", () => {
-  it("builds the base image successfully when Docker and Dockerfile exist", async () => {
-    vi.mocked(containerManager.checkDocker).mockReturnValue(true);
+describe("POST /api/incus/build-base", () => {
+  it("builds the base image successfully when Incus and provision script exist", async () => {
+    vi.mocked(incusManager.checkIncus).mockReturnValue(true);
     vi.mocked(existsSync).mockReturnValue(true);
-    vi.mocked(containerManager.buildImage).mockReturnValue("build log");
+    vi.mocked(incusManager.buildImage).mockReturnValue("build log");
 
-    const res = await app.request("/api/docker/build-base", { method: "POST" });
+    const res = await app.request("/api/incus/build-base", { method: "POST" });
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -269,21 +269,21 @@ describe("POST /api/docker/build-base", () => {
     expect(json.log).toBe("build log");
   });
 
-  it("returns 503 when Docker is not available", async () => {
-    vi.mocked(containerManager.checkDocker).mockReturnValue(false);
+  it("returns 503 when Incus is not available", async () => {
+    vi.mocked(incusManager.checkIncus).mockReturnValue(false);
 
-    const res = await app.request("/api/docker/build-base", { method: "POST" });
+    const res = await app.request("/api/incus/build-base", { method: "POST" });
 
     expect(res.status).toBe(503);
     const json = await res.json();
-    expect(json.error).toMatch(/docker/i);
+    expect(json.error).toMatch(/incus/i);
   });
 
-  it("returns 404 when the base Dockerfile does not exist on disk", async () => {
-    vi.mocked(containerManager.checkDocker).mockReturnValue(true);
+  it("returns 404 when the base provision script does not exist on disk", async () => {
+    vi.mocked(incusManager.checkIncus).mockReturnValue(true);
     vi.mocked(existsSync).mockReturnValue(false);
 
-    const res = await app.request("/api/docker/build-base", { method: "POST" });
+    const res = await app.request("/api/incus/build-base", { method: "POST" });
 
     expect(res.status).toBe(404);
     const json = await res.json();
@@ -291,13 +291,13 @@ describe("POST /api/docker/build-base", () => {
   });
 
   it("returns 500 when buildImage throws", async () => {
-    vi.mocked(containerManager.checkDocker).mockReturnValue(true);
+    vi.mocked(incusManager.checkIncus).mockReturnValue(true);
     vi.mocked(existsSync).mockReturnValue(true);
-    vi.mocked(containerManager.buildImage).mockImplementation(() => {
+    vi.mocked(incusManager.buildImage).mockImplementation(() => {
       throw new Error("out of disk space");
     });
 
-    const res = await app.request("/api/docker/build-base", { method: "POST" });
+    const res = await app.request("/api/incus/build-base", { method: "POST" });
 
     expect(res.status).toBe(500);
     const json = await res.json();
@@ -307,25 +307,25 @@ describe("POST /api/docker/build-base", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GET /api/docker/base-image
+// GET /api/incus/base-image
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe("GET /api/docker/base-image", () => {
+describe("GET /api/incus/base-image", () => {
   it("returns exists: false when the base image is not built", async () => {
-    vi.mocked(containerManager.imageExists).mockReturnValue(false);
+    vi.mocked(incusManager.imageExists).mockReturnValue(false);
 
-    const res = await app.request("/api/docker/base-image");
+    const res = await app.request("/api/incus/base-image");
 
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.exists).toBe(false);
-    expect(json.image).toBe("the-companion:latest");
+    expect(json.image).toBe("companion-incus");
   });
 
   it("returns exists: true when the base image is present", async () => {
-    vi.mocked(containerManager.imageExists).mockReturnValue(true);
+    vi.mocked(incusManager.imageExists).mockReturnValue(true);
 
-    const res = await app.request("/api/docker/base-image");
+    const res = await app.request("/api/incus/base-image");
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -340,7 +340,7 @@ describe("GET /api/docker/base-image", () => {
 describe("GET /api/images/:tag/status", () => {
   it("returns idle state for a tag that has not been pulled", async () => {
     const state = { image: "node:20", status: "idle", progress: [] };
-    vi.mocked(imagePullManager.getState).mockReturnValue(state as any);
+    vi.mocked(imageProvisionManager.getState).mockReturnValue(state as any);
 
     const res = await app.request("/api/images/node%3A20/status");
 
@@ -348,7 +348,7 @@ describe("GET /api/images/:tag/status", () => {
     const json = await res.json();
     expect(json.image).toBe("node:20");
     expect(json.status).toBe("idle");
-    expect(imagePullManager.getState).toHaveBeenCalledWith("node:20");
+    expect(imageProvisionManager.getState).toHaveBeenCalledWith("node:20");
   });
 });
 
@@ -358,9 +358,9 @@ describe("GET /api/images/:tag/status", () => {
 
 describe("POST /api/images/:tag/pull", () => {
   it("starts pulling an image and returns ok with the current state", async () => {
-    vi.mocked(containerManager.checkDocker).mockReturnValue(true);
+    vi.mocked(incusManager.checkIncus).mockReturnValue(true);
     const state = { image: "node:20", status: "pulling", progress: [] };
-    vi.mocked(imagePullManager.getState).mockReturnValue(state as any);
+    vi.mocked(imageProvisionManager.getState).mockReturnValue(state as any);
 
     const res = await app.request("/api/images/node%3A20/pull", { method: "POST" });
 
@@ -368,16 +368,16 @@ describe("POST /api/images/:tag/pull", () => {
     const json = await res.json();
     expect(json.ok).toBe(true);
     expect(json.state.status).toBe("pulling");
-    expect(imagePullManager.pull).toHaveBeenCalledWith("node:20");
+    expect(imageProvisionManager.rebuild).toHaveBeenCalledWith("node:20");
   });
 
-  it("returns 503 when Docker is not available", async () => {
-    vi.mocked(containerManager.checkDocker).mockReturnValue(false);
+  it("returns 503 when Incus is not available", async () => {
+    vi.mocked(incusManager.checkIncus).mockReturnValue(false);
 
     const res = await app.request("/api/images/node%3A20/pull", { method: "POST" });
 
     expect(res.status).toBe(503);
     const json = await res.json();
-    expect(json.error).toMatch(/docker/i);
+    expect(json.error).toMatch(/incus/i);
   });
 });

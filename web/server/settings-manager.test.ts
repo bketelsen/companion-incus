@@ -45,7 +45,7 @@ describe("settings-manager", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
   });
@@ -98,7 +98,7 @@ describe("settings-manager", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 123,
     });
   });
@@ -175,7 +175,7 @@ describe("settings-manager", () => {
       aiValidationAutoDeny: false,
       publicUrl: "",
       updateChannel: "stable",
-      dockerAutoUpdate: false,
+      autoRebuildImage: false,
       updatedAt: 0,
     });
   });

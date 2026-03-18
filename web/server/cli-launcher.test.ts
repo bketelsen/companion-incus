@@ -13,17 +13,17 @@ const mockResolveBinary = vi.hoisted(() => vi.fn((_name: string): string | null 
 const mockGetEnrichedPath = vi.hoisted(() => vi.fn(() => "/usr/bin:/usr/local/bin"));
 vi.mock("./path-resolver.js", () => ({ resolveBinary: mockResolveBinary, getEnrichedPath: mockGetEnrichedPath }));
 
-// Mock container-manager for container validation in relaunch
+// Mock incus-manager for container validation in relaunch
 const mockIsContainerAlive = vi.hoisted(() => vi.fn((): "running" | "stopped" | "missing" => "running"));
 const mockHasBinaryInContainer = vi.hoisted(() => vi.fn((): boolean => true));
 const mockStartContainer = vi.hoisted(() => vi.fn());
-const mockGetContainerById = vi.hoisted(() => vi.fn((_containerId: string) => undefined as any));
-vi.mock("./container-manager.js", () => ({
-  containerManager: {
+const mockGetContainerByName = vi.hoisted(() => vi.fn((_containerName: string) => undefined as any));
+vi.mock("./incus-manager.js", () => ({
+  incusManager: {
     isContainerAlive: mockIsContainerAlive,
     hasBinaryInContainer: mockHasBinaryInContainer,
     startContainer: mockStartContainer,
-    getContainerById: mockGetContainerById,
+    getContainerByName: mockGetContainerByName,
   },
 }));
 
@@ -156,7 +156,7 @@ beforeEach(() => {
   mockSpawn.mockReturnValue(createMockProc());
   mockListen.mockImplementation(() => ({ stop: vi.fn() }));
   mockResolveBinary.mockReturnValue("/usr/bin/claude");
-  mockGetContainerById.mockReturnValue(undefined);
+  mockGetContainerByName.mockReturnValue(undefined);
 });
 
 afterEach(() => {
@@ -235,7 +235,6 @@ describe("launch", () => {
     launcher.launch({
       cwd: "/tmp/project",
       permissionMode: "bypassPermissions",
-      containerId: "abc123def456",
       containerName: "companion-test",
     });
 
@@ -276,7 +275,6 @@ describe("launch", () => {
     process.env.COMPANION_CONTAINER_SDK_HOST = "172.17.0.1";
     launcher.launch({
       cwd: "/tmp/project",
-      containerId: "abc123def456",
       containerName: "companion-test",
     });
 
@@ -351,15 +349,13 @@ describe("launch", () => {
     expect(mockSpawn).not.toHaveBeenCalled();
   });
 
-  it("stores container metadata when containerId provided", () => {
+  it("stores container metadata when containerName provided", () => {
     const info = launcher.launch({
       cwd: "/tmp/project",
-      containerId: "abc123def456",
       containerName: "companion-session-1",
       containerImage: "ubuntu:22.04",
     });
 
-    expect(info.containerId).toBe("abc123def456");
     expect(info.containerName).toBe("companion-session-1");
     expect(info.containerImage).toBe("ubuntu:22.04");
     expect(info.containerCwd).toBe("/workspace");
@@ -370,7 +366,6 @@ describe("launch", () => {
     const info = launcher.launch({
       cwd: "/tmp/project",
       backendType: "codex",
-      containerId: "abc123def456",
       containerName: "companion-session-1",
       containerImage: "ubuntu:22.04",
       containerCwd: "/workspace/repo",
@@ -379,16 +374,15 @@ describe("launch", () => {
     expect(info.containerCwd).toBe("/workspace/repo");
   });
 
-  it("uses docker exec -i with bash -lc for containerized Claude sessions", () => {
+  it("uses incus exec with bash -lc for containerized Claude sessions", () => {
     // bash -lc ensures ~/.bashrc is sourced so nvm-installed CLIs are on PATH
     launcher.launch({
       cwd: "/tmp/project",
-      containerId: "abc123def456",
       containerName: "companion-session-1",
     });
 
     const [cmdAndArgs] = mockSpawn.mock.calls[0];
-    expect(cmdAndArgs[0]).toBe("docker");
+    expect(cmdAndArgs[0]).toBe("incus");
     expect(cmdAndArgs[1]).toBe("exec");
     expect(cmdAndArgs[2]).toBe("-i");
     // Should wrap the CLI command in bash -lc for login shell PATH
@@ -750,7 +744,6 @@ describe("relaunch", () => {
 
     launcher.launch({
       cwd: "/tmp/project",
-      containerId: "abc123def456",
       containerName: "companion-test",
       env: { CLAUDE_CODE_OAUTH_TOKEN: "tok-test" },
     });
@@ -776,7 +769,6 @@ describe("relaunch", () => {
     // Launch a containerized session
     launcher.launch({
       cwd: "/tmp/project",
-      containerId: "abc123def456",
       containerName: "companion-gone",
     });
 
@@ -811,7 +803,6 @@ describe("relaunch", () => {
 
     launcher.launch({
       cwd: "/tmp/project",
-      containerId: "abc123def456",
       containerName: "companion-stopped",
     });
 
@@ -824,14 +815,13 @@ describe("relaunch", () => {
 
     const result = await launcher.relaunch("test-session-id");
     expect(result).toEqual({ ok: true });
-    expect(mockStartContainer).toHaveBeenCalledWith("abc123def456");
+    expect(mockStartContainer).toHaveBeenCalledWith("companion-stopped");
     expect(mockSpawn).toHaveBeenCalledTimes(2);
   });
 
   it("returns error when stopped container cannot be restarted", async () => {
     launcher.launch({
       cwd: "/tmp/project",
-      containerId: "abc123def456",
       containerName: "companion-dead",
     });
 
@@ -848,7 +838,6 @@ describe("relaunch", () => {
   it("returns error when CLI binary not found in container", async () => {
     launcher.launch({
       cwd: "/tmp/project",
-      containerId: "abc123def456",
       containerName: "companion-nobin",
     });
 
@@ -1044,13 +1033,12 @@ describe("codex websocket launcher", () => {
   });
 
   it("containerized codex ws mode ignores detached launcher exit and uses proxy exit for session liveness", async () => {
-    // In container WS mode, docker exec -d exits immediately after launching Codex.
+    // In container WS mode, incus exec -d exits immediately after launching Codex.
     // The session must remain alive until the proxy (actual transport) exits.
     process.env.COMPANION_CODEX_TRANSPORT = "ws";
-    mockGetContainerById.mockReturnValue({
-      containerId: "abc123def456",
+    mockGetContainerByName.mockReturnValue({
       name: "companion-codex",
-      image: "the-companion:latest",
+      image: "companion-incus",
       portMappings: [{ containerPort: 4502, hostPort: 55021 }],
       hostCwd: "/tmp/project",
       containerCwd: "/workspace",
@@ -1075,7 +1063,6 @@ describe("codex websocket launcher", () => {
       backendType: "codex",
       cwd: "/tmp/project",
       codexSandbox: "workspace-write",
-      containerId: "abc123def456",
       containerName: "companion-codex",
     });
 
@@ -1197,18 +1184,18 @@ describe("persistence", () => {
       expect(newLauncher.restoreFromDisk()).toBe(0);
     });
 
-    it("recovers Docker WS sessions using container liveness instead of PID", () => {
-      // Docker WS mode sessions have containerId + codexWsPort.
-      // The stored PID is from `docker exec -d` which exits immediately,
+    it("recovers Incus WS sessions using container liveness instead of PID", () => {
+      // Incus WS mode sessions have containerName + codexWsPort.
+      // The stored PID is from `incus exec -d` which exits immediately,
       // so container liveness must be checked instead.
       const savedSessions = [
         {
-          sessionId: "docker-ws-1",
+          sessionId: "incus-ws-1",
           pid: 55555,
           state: "connected" as const,
           cwd: "/tmp/project",
           createdAt: Date.now(),
-          containerId: "abc123",
+          containerName: "companion-abc123",
           codexWsPort: 32819,
         },
       ];
@@ -1221,22 +1208,22 @@ describe("persistence", () => {
       const recovered = newLauncher.restoreFromDisk();
 
       expect(recovered).toBe(1);
-      expect(mockIsContainerAlive).toHaveBeenCalledWith("abc123");
+      expect(mockIsContainerAlive).toHaveBeenCalledWith("companion-abc123");
 
-      const session = newLauncher.getSession("docker-ws-1");
+      const session = newLauncher.getSession("incus-ws-1");
       expect(session).toBeDefined();
       expect(session?.state).toBe("starting");
     });
 
-    it("marks Docker WS sessions as exited when container is stopped", () => {
+    it("marks Incus WS sessions as exited when container is stopped", () => {
       const savedSessions = [
         {
-          sessionId: "docker-ws-dead",
+          sessionId: "incus-ws-dead",
           pid: 66666,
           state: "connected" as const,
           cwd: "/tmp/project",
           createdAt: Date.now(),
-          containerId: "dead-container",
+          containerName: "companion-dead-container",
           codexWsPort: 32820,
         },
       ];
@@ -1249,9 +1236,9 @@ describe("persistence", () => {
       const recovered = newLauncher.restoreFromDisk();
 
       expect(recovered).toBe(0);
-      expect(mockIsContainerAlive).toHaveBeenCalledWith("dead-container");
+      expect(mockIsContainerAlive).toHaveBeenCalledWith("companion-dead-container");
 
-      const session = newLauncher.getSession("docker-ws-dead");
+      const session = newLauncher.getSession("incus-ws-dead");
       expect(session).toBeDefined();
       expect(session?.state).toBe("exited");
       expect(session?.exitCode).toBe(-1);

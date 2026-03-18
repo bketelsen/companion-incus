@@ -85,8 +85,8 @@ const mockImagePullEnsureImage = vi.hoisted(() => vi.fn());
 const mockImagePullWaitForReady = vi.hoisted(() => vi.fn(async () => true));
 const mockImagePullOnProgress = vi.hoisted(() => vi.fn(() => () => {}));
 
-vi.mock("./image-pull-manager.js", () => ({
-  imagePullManager: {
+vi.mock("./image-provision-manager.js", () => ({
+  imageProvisionManager: {
     isReady: mockImagePullIsReady,
     getState: mockImagePullGetState,
     ensureImage: mockImagePullEnsureImage,
@@ -95,13 +95,12 @@ vi.mock("./image-pull-manager.js", () => ({
   },
 }));
 
-vi.mock("./container-manager.js", () => ({
-  containerManager: {
+vi.mock("./incus-manager.js", () => ({
+  incusManager: {
     removeContainer: vi.fn(),
     createContainer: vi.fn(() => ({
-      containerId: "cid-1",
       name: "companion-1",
-      image: "the-companion:latest",
+      image: "companion-incus",
       portMappings: [],
       hostCwd: "/test",
       containerCwd: "/workspace",
@@ -126,7 +125,7 @@ vi.mock("./container-manager.js", () => ({
 
 import { SessionOrchestrator } from "./session-orchestrator.js";
 import type { SessionOrchestratorDeps } from "./session-orchestrator.js";
-import { containerManager } from "./container-manager.js";
+import { incusManager } from "./incus-manager.js";
 import * as envManager from "./env-manager.js";
 import * as sandboxManager from "./sandbox-manager.js";
 import * as gitUtils from "./git-utils.js";
@@ -223,22 +222,21 @@ describe("SessionOrchestrator", () => {
     // previous tests (clearAllMocks resets calls/results but NOT implementations).
     vi.mocked(hasContainerClaudeAuth).mockReturnValue(true);
     vi.mocked(hasContainerCodexAuth).mockReturnValue(true);
-    vi.mocked(containerManager.createContainer).mockReturnValue({
-      containerId: "cid-1",
+    vi.mocked(incusManager.createContainer).mockReturnValue({
       name: "companion-1",
-      image: "the-companion:latest",
+      image: "companion-incus",
       portMappings: [],
       hostCwd: "/test",
       containerCwd: "/workspace",
       state: "running",
     } as any);
-    vi.mocked(containerManager.gitOpsInContainer).mockReturnValue({
+    vi.mocked(incusManager.gitOpsInContainer).mockReturnValue({
       fetchOk: true,
       checkoutOk: true,
       pullOk: true,
       errors: [],
     } as any);
-    vi.mocked(containerManager.execInContainerAsync).mockResolvedValue({ exitCode: 0, output: "ok" });
+    vi.mocked(incusManager.execInContainerAsync).mockResolvedValue({ exitCode: 0, output: "ok" });
     deps = createDeps();
     orchestrator = new SessionOrchestrator(deps);
   });
@@ -305,7 +303,7 @@ describe("SessionOrchestrator", () => {
       expect(deps.launcher.kill).toHaveBeenCalledWith("s1");
       // Container must NOT be removed — idle-kill only stops the CLI process
       // so the container can be reused on relaunch.
-      expect(containerManager.removeContainer).not.toHaveBeenCalled();
+      expect(incusManager.removeContainer).not.toHaveBeenCalled();
     });
 
     it("after idle-kill, relaunch reuses preserved container without creating a new one", async () => {
@@ -315,7 +313,7 @@ describe("SessionOrchestrator", () => {
       deps.launcher.getSession.mockReturnValue({
         archived: false,
         state: "exited",
-        containerId: "cid-preserved",
+        containerName: "companion-preserved",
         pid: undefined,
       } as any);
       deps.wsBridge.isCliConnected.mockReturnValue(false);
@@ -326,7 +324,7 @@ describe("SessionOrchestrator", () => {
       companionBus.emit("session:idle-kill", { sessionId: "s1" });
       await vi.advanceTimersByTimeAsync(0);
       expect(deps.launcher.kill).toHaveBeenCalledWith("s1");
-      expect(containerManager.removeContainer).not.toHaveBeenCalled();
+      expect(incusManager.removeContainer).not.toHaveBeenCalled();
 
       // 2. Browser reconnects — triggers auto-relaunch
       companionBus.emit("session:relaunch-needed", { sessionId: "s1" });
@@ -335,7 +333,7 @@ describe("SessionOrchestrator", () => {
 
       // 3. Relaunch succeeds using the preserved container — no new container created
       expect(deps.launcher.relaunch).toHaveBeenCalledWith("s1");
-      expect(containerManager.createContainer).not.toHaveBeenCalled();
+      expect(incusManager.createContainer).not.toHaveBeenCalled();
 
       vi.useRealTimers();
     });
@@ -461,7 +459,7 @@ describe("SessionOrchestrator", () => {
       }
     });
 
-    it("performs git fetch, checkout, and pull for non-docker branch", async () => {
+    it("performs git fetch, checkout, and pull for non-container branch", async () => {
       vi.mocked(gitUtils.getRepoInfo).mockReturnValue({
         repoRoot: "/repo",
         repoName: "my-repo",
@@ -600,30 +598,30 @@ describe("SessionOrchestrator", () => {
 
     it("creates container for sandboxed sessions", async () => {
       vi.mocked(envManager.getEnv).mockReturnValue({
-        name: "Docker",
-        slug: "docker",
+        name: "Incus",
+        slug: "incus",
         variables: { CLAUDE_CODE_OAUTH_TOKEN: "token" },
         createdAt: 1,
         updatedAt: 1,
       } as any);
       vi.mocked(sandboxManager.getSandbox).mockReturnValue({
-        name: "Docker",
-        slug: "docker",
+        name: "Incus",
+        slug: "incus",
         createdAt: 1,
         updatedAt: 1,
       });
 
       const result = await orchestrator.createSession({
         cwd: "/test",
-        envSlug: "docker",
+        envSlug: "incus",
         sandboxEnabled: true,
-        sandboxSlug: "docker",
+        sandboxSlug: "incus",
       });
 
       expect(result.ok).toBe(true);
-      expect(containerManager.createContainer).toHaveBeenCalled();
-      expect(containerManager.copyWorkspaceToContainer).toHaveBeenCalled();
-      expect(containerManager.retrack).toHaveBeenCalledWith("cid-1", "session-1");
+      expect(incusManager.createContainer).toHaveBeenCalled();
+      expect(incusManager.copyWorkspaceToContainer).toHaveBeenCalled();
+      expect(incusManager.retrack).toHaveBeenCalledWith("companion-1", "session-1");
       expect(deps.wsBridge.markContainerized).toHaveBeenCalledWith("session-1", "/test");
     });
 
@@ -635,8 +633,8 @@ describe("SessionOrchestrator", () => {
         createdAt: 1,
         updatedAt: 1,
       } as any);
-      vi.mocked(containerManager.createContainer).mockImplementation(() => {
-        throw new Error("docker daemon timeout");
+      vi.mocked(incusManager.createContainer).mockImplementation(() => {
+        throw new Error("incus daemon timeout");
       });
 
       const result = await orchestrator.createSession({
@@ -676,7 +674,7 @@ describe("SessionOrchestrator", () => {
       });
 
       expect(result.ok).toBe(true);
-      expect(containerManager.execInContainerAsync).toHaveBeenCalledWith(
+      expect(incusManager.execInContainerAsync).toHaveBeenCalledWith(
         "cid-1",
         ["sh", "-lc", "npm install"],
         expect.objectContaining({ timeout: expect.any(Number) }),
@@ -698,7 +696,7 @@ describe("SessionOrchestrator", () => {
         createdAt: 1,
         updatedAt: 1,
       });
-      vi.mocked(containerManager.execInContainerAsync).mockResolvedValue({ exitCode: 1, output: "npm ERR!" });
+      vi.mocked(incusManager.execInContainerAsync).mockResolvedValue({ exitCode: 1, output: "npm ERR!" });
 
       const result = await orchestrator.createSession({
         cwd: "/test",
@@ -712,11 +710,11 @@ describe("SessionOrchestrator", () => {
         expect(result.error).toContain("Init script failed");
         expect(result.status).toBe(503);
         // Container should be cleaned up
-        expect(containerManager.removeContainer).toHaveBeenCalled();
+        expect(incusManager.removeContainer).toHaveBeenCalled();
       }
     });
 
-    it("runs git ops inside container for Docker sessions with branch", async () => {
+    it("runs git ops inside container for Incus sessions with branch", async () => {
       vi.mocked(gitUtils.getRepoInfo).mockReturnValue({
         repoRoot: "/repo",
         repoName: "my-repo",
@@ -725,15 +723,15 @@ describe("SessionOrchestrator", () => {
         isWorktree: false,
       } as any);
       vi.mocked(envManager.getEnv).mockReturnValue({
-        name: "Docker",
-        slug: "docker",
+        name: "Incus",
+        slug: "incus",
         variables: { CLAUDE_CODE_OAUTH_TOKEN: "token" },
         createdAt: 1,
         updatedAt: 1,
       } as any);
       vi.mocked(sandboxManager.getSandbox).mockReturnValue({
-        name: "Docker",
-        slug: "docker",
+        name: "Incus",
+        slug: "incus",
         createdAt: 1,
         updatedAt: 1,
       });
@@ -741,9 +739,9 @@ describe("SessionOrchestrator", () => {
       const result = await orchestrator.createSession({
         cwd: "/repo",
         branch: "feat/new",
-        envSlug: "docker",
+        envSlug: "incus",
         sandboxEnabled: true,
-        sandboxSlug: "docker",
+        sandboxSlug: "incus",
       });
 
       expect(result.ok).toBe(true);
@@ -752,8 +750,8 @@ describe("SessionOrchestrator", () => {
       expect(gitUtils.checkoutOrCreateBranch).not.toHaveBeenCalled();
       expect(gitUtils.gitPull).not.toHaveBeenCalled();
       // In-container git ops SHOULD have been called
-      expect(containerManager.gitOpsInContainer).toHaveBeenCalledWith(
-        "cid-1",
+      expect(incusManager.gitOpsInContainer).toHaveBeenCalledWith(
+        "companion-1",
         expect.objectContaining({ branch: "feat/new", currentBranch: "main" }),
       );
     });
@@ -779,7 +777,7 @@ describe("SessionOrchestrator", () => {
         createdAt: 1,
         updatedAt: 1,
       });
-      vi.mocked(containerManager.gitOpsInContainer).mockReturnValue({
+      vi.mocked(incusManager.gitOpsInContainer).mockReturnValue({
         fetchOk: true,
         checkoutOk: false,
         pullOk: false,
@@ -798,7 +796,7 @@ describe("SessionOrchestrator", () => {
       if (!result.ok) {
         expect(result.error).toContain("Failed to checkout branch");
         expect(result.status).toBe(400);
-        expect(containerManager.removeContainer).toHaveBeenCalled();
+        expect(incusManager.removeContainer).toHaveBeenCalled();
       }
     });
 
@@ -847,7 +845,7 @@ describe("SessionOrchestrator", () => {
 
     it("cleans up container when launcher.launch throws after container creation", async () => {
       // If a container was created but launcher.launch throws, the container
-      // should be cleaned up to avoid leaking Docker resources.
+      // should be cleaned up to avoid leaking Incus resources.
       vi.mocked(envManager.getEnv).mockReturnValue({
         name: "E",
         slug: "e",
@@ -871,7 +869,7 @@ describe("SessionOrchestrator", () => {
         expect(result.status).toBe(503);
       }
       // Container should be cleaned up after launch failure
-      expect(containerManager.removeContainer).toHaveBeenCalled();
+      expect(incusManager.removeContainer).toHaveBeenCalled();
     });
   });
 
@@ -914,7 +912,7 @@ describe("SessionOrchestrator", () => {
 
       expect(result.ok).toBe(true);
       expect(deps.launcher.kill).toHaveBeenCalledWith("s1");
-      expect(containerManager.removeContainer).toHaveBeenCalledWith("s1");
+      expect(incusManager.removeContainer).toHaveBeenCalledWith("s1");
     });
 
     it("returns ok=false and does not remove container when session not found", async () => {
@@ -924,7 +922,7 @@ describe("SessionOrchestrator", () => {
       const result = await orchestrator.killSession("s1");
 
       expect(result.ok).toBe(false);
-      expect(containerManager.removeContainer).not.toHaveBeenCalled();
+      expect(incusManager.removeContainer).not.toHaveBeenCalled();
     });
   });
 
@@ -966,7 +964,7 @@ describe("SessionOrchestrator", () => {
 
       expect(result.ok).toBe(true);
       expect(deps.launcher.kill).toHaveBeenCalledWith("s1");
-      expect(containerManager.removeContainer).toHaveBeenCalledWith("s1");
+      expect(incusManager.removeContainer).toHaveBeenCalledWith("s1");
       expect(deps.prPoller.unwatch).toHaveBeenCalledWith("s1");
       expect(deps.launcher.setArchived).toHaveBeenCalledWith("s1", true);
       expect(deps.sessionStore.setArchived).toHaveBeenCalledWith("s1", true);
@@ -1106,7 +1104,7 @@ describe("SessionOrchestrator", () => {
 
       expect(result.ok).toBe(true);
       expect(deps.launcher.kill).toHaveBeenCalledWith("s1");
-      expect(containerManager.removeContainer).toHaveBeenCalledWith("s1");
+      expect(incusManager.removeContainer).toHaveBeenCalledWith("s1");
       expect(deps.prPoller.unwatch).toHaveBeenCalledWith("s1");
       expect(sessionLinearIssues.removeLinearIssue).toHaveBeenCalledWith("s1");
       expect(deps.launcher.removeSession).toHaveBeenCalledWith("s1");
@@ -1156,7 +1154,7 @@ describe("SessionOrchestrator", () => {
 
       await orchestrator.deleteSession("s1");
 
-      expect(containerManager.removeContainer).toHaveBeenCalledWith("s1");
+      expect(incusManager.removeContainer).toHaveBeenCalledWith("s1");
     });
   });
 
@@ -1439,10 +1437,10 @@ describe("SessionOrchestrator", () => {
       // of PID check. If the container is running, skip relaunch to let the
       // CLI reconnect on its own. Use state "starting" to bypass the earlier
       // connected/running guard and actually exercise the container check path.
-      vi.mocked(containerManager.isContainerAlive).mockReturnValue("running" as any);
+      vi.mocked(incusManager.isContainerAlive).mockReturnValue("running" as any);
       deps.launcher.getSession
         .mockReturnValueOnce({ archived: false } as any) // check archived
-        .mockReturnValueOnce({ state: "starting", containerId: "cid-abc", pid: 99999 } as any); // after grace
+        .mockReturnValueOnce({ state: "starting", containerName: "companion-abc", pid: 99999 } as any); // after grace
       deps.wsBridge.isCliConnected.mockReturnValue(false);
       orchestrator.initialize();
 
@@ -1450,18 +1448,18 @@ describe("SessionOrchestrator", () => {
       await vi.advanceTimersByTimeAsync(15_000);
       await vi.advanceTimersByTimeAsync(0);
 
-      expect(containerManager.isContainerAlive).toHaveBeenCalledWith("cid-abc");
+      expect(incusManager.isContainerAlive).toHaveBeenCalledWith("companion-abc");
       expect(deps.launcher.relaunch).not.toHaveBeenCalled();
     });
 
     it("relaunches exited containerized session even when container was removed", async () => {
-      // If a container was removed externally (e.g. docker prune), the session
+      // If a container was removed externally (e.g. incus delete), the session
       // state becomes "exited". The fix skips PID/container checks for exited
       // sessions entirely, so relaunch proceeds.
-      vi.mocked(containerManager.isContainerAlive).mockReturnValue("not_found" as any);
+      vi.mocked(incusManager.isContainerAlive).mockReturnValue("not_found" as any);
       deps.launcher.getSession
         .mockReturnValueOnce({ archived: false } as any) // check archived
-        .mockReturnValueOnce({ state: "exited", containerId: "cid-dead", pid: 99999 } as any); // after grace
+        .mockReturnValueOnce({ state: "exited", containerName: "companion-dead", pid: 99999 } as any); // after grace
       deps.wsBridge.isCliConnected.mockReturnValue(false);
       orchestrator.initialize();
 

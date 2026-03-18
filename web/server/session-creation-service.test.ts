@@ -28,12 +28,11 @@ vi.mock("./git-utils.js", () => ({
   checkoutOrCreateBranch: vi.fn(() => ({ created: false })),
 }));
 
-// Mock container-manager
-vi.mock("./container-manager.js", () => ({
-  containerManager: {
+// Mock incus-manager
+vi.mock("./incus-manager.js", () => ({
+  incusManager: {
     createContainer: vi.fn(() => ({
-      containerId: "abc123",
-      name: "test-container",
+      name: "companion-abc123",
       image: "test-image",
       portMappings: [],
       hostCwd: "/workspace",
@@ -67,9 +66,9 @@ vi.mock("./codex-container-auth.js", () => ({
   hasContainerCodexAuth: vi.fn(() => true),
 }));
 
-// Mock image-pull-manager
-vi.mock("./image-pull-manager.js", () => ({
-  imagePullManager: {
+// Mock image-provision-manager
+vi.mock("./image-provision-manager.js", () => ({
+  imageProvisionManager: {
     isReady: vi.fn(() => true),
     getState: vi.fn(() => ({ status: "ready" })),
     ensureImage: vi.fn(),
@@ -109,10 +108,10 @@ import {
 import * as envManager from "./env-manager.js";
 import * as sandboxManager from "./sandbox-manager.js";
 import * as gitUtils from "./git-utils.js";
-import { containerManager } from "./container-manager.js";
+import { incusManager } from "./incus-manager.js";
 import { hasContainerClaudeAuth } from "./claude-container-auth.js";
 import { hasContainerCodexAuth } from "./codex-container-auth.js";
-import { imagePullManager } from "./image-pull-manager.js";
+import { imageProvisionManager } from "./image-provision-manager.js";
 import { getConnection } from "./linear-connections.js";
 
 // ---------------------------------------------------------------------------
@@ -311,9 +310,9 @@ describe("executeSessionCreation", () => {
 
   // -- Image pull failure --
   it("throws 503 when image pull fails", async () => {
-    vi.mocked(imagePullManager.isReady).mockReturnValueOnce(false);
-    vi.mocked(imagePullManager.waitForReady).mockResolvedValueOnce(false);
-    vi.mocked(imagePullManager.getState).mockReturnValueOnce({
+    vi.mocked(imageProvisionManager.isReady).mockReturnValueOnce(false);
+    vi.mocked(imageProvisionManager.waitForReady).mockResolvedValueOnce(false);
+    vi.mocked(imageProvisionManager.getState).mockReturnValueOnce({
       status: "error",
       error: "pull failed",
     } as any);
@@ -333,8 +332,8 @@ describe("executeSessionCreation", () => {
 
   // -- Container create failure --
   it("throws 503 when container creation fails", async () => {
-    vi.mocked(containerManager.createContainer).mockImplementationOnce(() => {
-      throw new Error("docker not found");
+    vi.mocked(incusManager.createContainer).mockImplementationOnce(() => {
+      throw new Error("incus not found");
     });
 
     try {
@@ -352,7 +351,7 @@ describe("executeSessionCreation", () => {
 
   // -- Workspace copy failure triggers cleanup --
   it("removes container when workspace copy fails", async () => {
-    vi.mocked(containerManager.copyWorkspaceToContainer).mockRejectedValueOnce(
+    vi.mocked(incusManager.copyWorkspaceToContainer).mockRejectedValueOnce(
       new Error("copy failed"),
     );
 
@@ -367,13 +366,13 @@ describe("executeSessionCreation", () => {
       expect((e as SessionCreationError).statusCode).toBe(503);
       expect((e as SessionCreationError).step).toBe("copying_workspace");
       // Verify cleanup happened
-      expect(containerManager.removeContainer).toHaveBeenCalled();
+      expect(incusManager.removeContainer).toHaveBeenCalled();
     }
   });
 
   // -- Container git checkout failure triggers cleanup --
   it("removes container when in-container git checkout fails", async () => {
-    vi.mocked(containerManager.gitOpsInContainer).mockReturnValueOnce({
+    vi.mocked(incusManager.gitOpsInContainer).mockReturnValueOnce({
       fetchOk: true,
       checkoutOk: false,
       pullOk: false,
@@ -390,7 +389,7 @@ describe("executeSessionCreation", () => {
       expect(e).toBeInstanceOf(SessionCreationError);
       expect((e as SessionCreationError).statusCode).toBe(400);
       expect((e as SessionCreationError).step).toBe("checkout_branch");
-      expect(containerManager.removeContainer).toHaveBeenCalled();
+      expect(incusManager.removeContainer).toHaveBeenCalled();
     }
   });
 
@@ -453,7 +452,7 @@ describe("executeSessionCreation", () => {
       deps,
     );
 
-    expect(containerManager.retrack).toHaveBeenCalledWith("abc123", "sess-1");
+    expect(incusManager.retrack).toHaveBeenCalledWith("companion-abc123", "sess-1");
     expect(deps.wsBridge.markContainerized).toHaveBeenCalledWith("sess-1", "/workspace");
   });
 
@@ -538,8 +537,8 @@ describe("executeSessionCreation", () => {
     );
 
     // Init script should have been executed via execInContainerAsync
-    expect(containerManager.execInContainerAsync).toHaveBeenCalledWith(
-      "abc123",
+    expect(incusManager.execInContainerAsync).toHaveBeenCalledWith(
+      "companion-abc123",
       ["sh", "-lc", "echo hello"],
       expect.objectContaining({ timeout: expect.any(Number) }),
     );
@@ -555,7 +554,7 @@ describe("executeSessionCreation", () => {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     } as any);
-    vi.mocked(containerManager.execInContainerAsync).mockResolvedValueOnce({
+    vi.mocked(incusManager.execInContainerAsync).mockResolvedValueOnce({
       exitCode: 1,
       output: "script failed",
     });
@@ -570,7 +569,7 @@ describe("executeSessionCreation", () => {
       expect(e).toBeInstanceOf(SessionCreationError);
       expect((e as SessionCreationError).statusCode).toBe(503);
       expect((e as SessionCreationError).step).toBe("running_init_script");
-      expect(containerManager.removeContainer).toHaveBeenCalled();
+      expect(incusManager.removeContainer).toHaveBeenCalled();
     }
   });
 
@@ -583,7 +582,7 @@ describe("executeSessionCreation", () => {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     } as any);
-    vi.mocked(containerManager.execInContainerAsync).mockRejectedValueOnce(
+    vi.mocked(incusManager.execInContainerAsync).mockRejectedValueOnce(
       new Error("exec timeout"),
     );
 
@@ -597,7 +596,7 @@ describe("executeSessionCreation", () => {
       expect(e).toBeInstanceOf(SessionCreationError);
       expect((e as SessionCreationError).statusCode).toBe(503);
       expect((e as SessionCreationError).step).toBe("running_init_script");
-      expect(containerManager.removeContainer).toHaveBeenCalled();
+      expect(incusManager.removeContainer).toHaveBeenCalled();
     }
   });
 
@@ -624,7 +623,7 @@ describe("executeSessionCreation", () => {
       expect((e as SessionCreationError).step).toBe("launching_cli");
       expect((e as SessionCreationError).message).toContain("spawn failed");
       // Verify container cleanup
-      expect(containerManager.removeContainer).toHaveBeenCalled();
+      expect(incusManager.removeContainer).toHaveBeenCalled();
     }
   });
 

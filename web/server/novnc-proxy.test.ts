@@ -13,11 +13,11 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// ── Mock container-manager ──────────────────────────────────────────────────
+// ── Mock incus-manager ──────────────────────────────────────────────────────
 const mockGetContainer = vi.hoisted(() => vi.fn());
 
-vi.mock("./container-manager.js", () => ({
-  containerManager: {
+vi.mock("./incus-manager.js", () => ({
+  incusManager: {
     getContainer: mockGetContainer,
   },
 }));
