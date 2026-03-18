@@ -1,0 +1,213 @@
+/* Brand color overrides — burnt orange accent */
+:root {
+  --vp-c-brand-1: #b74f2b;
+  --vp-c-brand-2: #a34425;
+  --vp-c-brand-3: #8f3a1f;
+  --vp-c-brand-soft: rgba(183, 79, 43, 0.14);
+}
+
+.dark {
+  --vp-c-brand-1: #d4734e;
+  --vp-c-brand-2: #c4623d;
+  --vp-c-brand-3: #b74f2b;
+  --vp-c-brand-soft: rgba(212, 115, 78, 0.14);
+}
+
+/* Home page — hero gradient */
+.hero-section {
+  background: linear-gradient(180deg, #f0e8d9 0%, var(--vp-c-bg) 100%);
+  padding: 80px 24px 64px;
+  text-align: center;
+}
+
+.dark .hero-section {
+  background: linear-gradient(180deg, #2a1f15 0%, var(--vp-c-bg) 100%);
+}
+
+.hero-inner {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.hero-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--vp-c-text-1);
+  margin: 0 0 8px;
+}
+
+.hero-tagline {
+  font-size: 1.1rem;
+  color: var(--vp-c-text-2);
+  margin: 0 0 24px;
+}
+
+.hero-install {
+  display: inline-block;
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  padding: 10px 20px;
+  margin-bottom: 24px;
+}
+
+.hero-install code {
+  font-size: 0.95rem;
+  color: var(--vp-c-brand-1);
+}
+
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn-brand {
+  display: inline-block;
+  padding: 10px 24px;
+  background: var(--vp-c-brand-1);
+  color: #fff !important;
+  border-radius: 8px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.btn-brand:hover {
+  background: var(--vp-c-brand-2);
+}
+
+.btn-alt {
+  display: inline-block;
+  padding: 10px 24px;
+  border: 1px solid var(--vp-c-divider);
+  color: var(--vp-c-text-1) !important;
+  border-radius: 8px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 0.2s;
+}
+
+.btn-alt:hover {
+  border-color: var(--vp-c-brand-1);
+}
+
+/* Home page — features */
+.features-section {
+  padding: 48px 24px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .features-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.feature-card {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.feature-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: var(--vp-c-text-1);
+}
+
+.feature-card p {
+  font-size: 0.875rem;
+  color: var(--vp-c-text-2);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Home page — how it works */
+.how-section {
+  padding: 48px 24px 64px;
+  text-align: center;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.how-section h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 24px;
+  color: var(--vp-c-text-1);
+}
+
+.architecture {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.arch-node {
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--vp-c-text-1);
+}
+
+.arch-arrow {
+  color: var(--vp-c-text-3);
+  font-size: 0.8rem;
+}
+
+.how-desc {
+  font-size: 0.9rem;
+  color: var(--vp-c-text-2);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Home page — footer */
+.home-footer {
+  border-top: 1px solid var(--vp-c-divider);
+  padding: 24px;
+  text-align: center;
+}
+
+.home-footer-message {
+  font-size: 0.85rem;
+  color: var(--vp-c-text-2);
+  margin: 0 0 4px;
+}
+
+.home-footer-message a {
+  color: var(--vp-c-brand-1);
+  text-decoration: none;
+}
+
+.home-footer-message a:hover {
+  text-decoration: underline;
+}
+
+.home-footer-copyright {
+  font-size: 0.8rem;
+  color: var(--vp-c-text-3);
+  margin: 0;
+}

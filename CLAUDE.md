@@ -26,10 +26,9 @@ cd web && bun run build && bun run start
 cd web && bun run generate-token          # show current token
 cd web && bun run generate-token --force  # regenerate a new token
 
-# Landing page (thecompanion.sh) — idempotent: starts if down, no-op if up
-# IMPORTANT: Always use this script to run the landing page. Never cd into landing/ and run bun/vite manually.
-./scripts/landing-start.sh          # start
-./scripts/landing-start.sh --stop   # stop
+# Documentation site (VitePress)
+cd site && bun install && bun run dev     # local dev server
+cd site && bun run build                  # production build
 ```
 
 ## Testing
