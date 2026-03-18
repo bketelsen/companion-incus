@@ -2,14 +2,14 @@ import type { CliLauncher, SdkSessionInfo } from "./cli-launcher.js";
 import type { WsBridge } from "./ws-bridge.js";
 import type { WorktreeTracker } from "./worktree-tracker.js";
 import type { CreationStepId } from "./session-types.js";
-import type { ContainerConfig, ContainerInfo } from "./container-manager.js";
+import type { IncusContainerConfig, IncusContainerInfo } from "./incus-manager.js";
 import * as envManager from "./env-manager.js";
 import * as sandboxManager from "./sandbox-manager.js";
 import * as gitUtils from "./git-utils.js";
-import { containerManager } from "./container-manager.js";
+import { incusManager } from "./incus-manager.js";
 import { hasContainerClaudeAuth } from "./claude-container-auth.js";
 import { hasContainerCodexAuth } from "./codex-container-auth.js";
-import { imagePullManager } from "./image-pull-manager.js";
+import { imageProvisionManager } from "./image-provision-manager.js";
 import { getConnection } from "./linear-connections.js";
 import { buildLinearSystemPrompt } from "./linear-prompt-builder.js";
 import { discoverCommandsAndSkills } from "./commands-discovery.js";
@@ -117,14 +117,14 @@ export async function executeSessionCreation(
     }
   }
 
-  // Resolve Docker image early
+  // Resolve container image early
   let effectiveImage: string | null = null;
   if (sandboxEnabled) {
-    effectiveImage = "the-companion:latest";
+    effectiveImage = "companion-incus";
   } else if ((body.container as Record<string, unknown>)?.image) {
     effectiveImage = (body.container as Record<string, unknown>).image as string;
   }
-  const isDockerSession = !!effectiveImage;
+  const isContainerSession = !!effectiveImage;
 
   await emit(onProgress, "resolving_env", "Environment resolved", "done");
 
@@ -143,7 +143,7 @@ export async function executeSessionCreation(
     throw new SessionCreationError("Invalid branch name", 400, "checkout_branch");
   }
 
-  if (!isDockerSession && body.useWorktree && body.branch && cwd) {
+  if (!isContainerSession && body.useWorktree && body.branch && cwd) {
     const repoInfo = gitUtils.getRepoInfo(cwd);
     if (repoInfo) {
       await emit(onProgress, "fetching_git", "Fetching from remote...", "in_progress");
@@ -169,7 +169,7 @@ export async function executeSessionCreation(
       };
       await emit(onProgress, "creating_worktree", "Worktree ready", "done");
     }
-  } else if (!isDockerSession && body.branch && cwd) {
+  } else if (!isContainerSession && body.branch && cwd) {
     const repoInfo = gitUtils.getRepoInfo(cwd);
     if (repoInfo) {
       await emit(onProgress, "fetching_git", "Fetching from remote...", "in_progress");
@@ -198,8 +198,7 @@ export async function executeSessionCreation(
   }
 
   // -- Step: Container creation --
-  let containerInfo: ContainerInfo | undefined;
-  let containerId: string | undefined;
+  let containerInfo: IncusContainerInfo | undefined;
   let containerName: string | undefined;
   let containerImage: string | undefined;
   let tempId: string | undefined;
@@ -230,32 +229,32 @@ export async function executeSessionCreation(
 
   if (effectiveImage) {
     // -- Image pull --
-    if (!imagePullManager.isReady(effectiveImage)) {
-      const pullState = imagePullManager.getState(effectiveImage);
+    if (!imageProvisionManager.isReady(effectiveImage)) {
+      const pullState = imageProvisionManager.getState(effectiveImage);
       if (pullState.status === "idle" || pullState.status === "error") {
-        imagePullManager.ensureImage(effectiveImage);
+        imageProvisionManager.ensureImage(effectiveImage);
       }
 
-      await emit(onProgress, "pulling_image", "Pulling Docker image...", "in_progress");
+      await emit(onProgress, "pulling_image", "Building container image...", "in_progress");
 
       // Stream pull progress lines if the caller wants progress
       let unsub: (() => void) | undefined;
       if (onProgress) {
-        unsub = imagePullManager.onProgress(effectiveImage, (line) => {
-          emit(onProgress, "pulling_image", "Pulling Docker image...", "in_progress", line).catch(() => {});
+        unsub = imageProvisionManager.onProgress(effectiveImage, (line) => {
+          emit(onProgress, "pulling_image", "Building container image...", "in_progress", line).catch(() => {});
         });
       }
 
-      const ready = await imagePullManager.waitForReady(effectiveImage, 300_000);
+      const ready = await imageProvisionManager.waitForReady(effectiveImage, 300_000);
       unsub?.();
 
       if (ready) {
         await emit(onProgress, "pulling_image", "Image ready", "done");
       } else {
-        const state = imagePullManager.getState(effectiveImage);
+        const state = imageProvisionManager.getState(effectiveImage);
         throw new SessionCreationError(
           state.error ||
-          `Docker image ${effectiveImage} could not be pulled or built. Use the environment manager to pull/build the image first.`,
+          `Container image ${effectiveImage} could not be built. Use the environment manager to build the image first.`,
           503,
           "pulling_image",
         );
@@ -276,25 +275,24 @@ export async function executeSessionCreation(
       ])),
       { port: NOVNC_CONTAINER_PORT, hostIp: "127.0.0.1" },
     ];
-    const cConfig: ContainerConfig = {
+    const cConfig: IncusContainerConfig = {
       image: effectiveImage,
       ports: containerPorts,
       volumes: (body.container as Record<string, unknown>)?.volumes as string[] | undefined,
       env: { ...(envVars ?? {}), DISPLAY: ":99" },
-      privileged: sandboxEnabled && effectiveImage === "the-companion:latest",
+      nesting: sandboxEnabled && effectiveImage === "companion-incus",
     };
     try {
-      containerInfo = containerManager.createContainer(tempId, cwd!, cConfig);
+      containerInfo = incusManager.createContainer(tempId, cwd!, cConfig);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       throw new SessionCreationError(
-        `Docker is required to run this environment image (${effectiveImage}) ` +
+        `Incus is required to run this environment image (${effectiveImage}) ` +
         `but container startup failed: ${reason}`,
         503,
         "creating_container",
       );
     }
-    containerId = containerInfo.containerId;
     containerName = containerInfo.name;
     containerImage = effectiveImage;
     await emit(onProgress, "creating_container", "Container running", "done");
@@ -302,11 +300,11 @@ export async function executeSessionCreation(
     // -- Copy workspace --
     await emit(onProgress, "copying_workspace", "Copying workspace files...", "in_progress");
     try {
-      await containerManager.copyWorkspaceToContainer(containerInfo.containerId, cwd!);
-      containerManager.reseedGitAuth(containerInfo.containerId);
+      await incusManager.copyWorkspaceToContainer(containerInfo.name, cwd!);
+      incusManager.reseedGitAuth(containerInfo.name);
       await emit(onProgress, "copying_workspace", "Workspace copied", "done");
     } catch (err) {
-      containerManager.removeContainer(tempId);
+      incusManager.removeContainer(tempId);
       const reason = err instanceof Error ? err.message : String(err);
       throw new SessionCreationError(
         `Failed to copy workspace to container: ${reason}`,
@@ -320,7 +318,7 @@ export async function executeSessionCreation(
       const repoInfo = cwd ? gitUtils.getRepoInfo(cwd) : null;
 
       await emit(onProgress, "fetching_git", "Fetching from remote (in container)...", "in_progress");
-      const gitResult = containerManager.gitOpsInContainer(containerInfo.containerId, {
+      const gitResult = incusManager.gitOpsInContainer(containerInfo.name, {
         branch: body.branch as string,
         currentBranch: repoInfo?.currentBranch || "HEAD",
         createBranch: body.createBranch as boolean | undefined,
@@ -343,7 +341,7 @@ export async function executeSessionCreation(
         console.warn(`[session-creation] In-container git ops warnings: ${gitResult.errors.join("; ")}`);
       }
       if (!gitResult.checkoutOk) {
-        containerManager.removeContainer(tempId);
+        incusManager.removeContainer(tempId);
         throw new SessionCreationError(
           `Failed to checkout branch "${body.branch}" inside container: ${gitResult.errors.join("; ")}`,
           400,
@@ -358,8 +356,8 @@ export async function executeSessionCreation(
       await emit(onProgress, "running_init_script", "Running init script...", "in_progress");
       try {
         const initTimeout = Number(process.env.COMPANION_INIT_SCRIPT_TIMEOUT) || 120_000;
-        const result = await containerManager.execInContainerAsync(
-          containerInfo.containerId,
+        const result = await incusManager.execInContainerAsync(
+          containerInfo.name,
           ["sh", "-lc", initScript],
           {
             timeout: initTimeout,
@@ -374,7 +372,7 @@ export async function executeSessionCreation(
           console.error(
             `[session-creation] Init script failed for sandbox "${companionSandbox?.name || "sandbox"}" (exit ${result.exitCode}):\n${result.output}`,
           );
-          containerManager.removeContainer(tempId);
+          incusManager.removeContainer(tempId);
           const truncated =
             result.output.length > 2000
               ? result.output.slice(0, 500) + "\n...[truncated]...\n" + result.output.slice(-1500)
@@ -389,7 +387,7 @@ export async function executeSessionCreation(
         await emit(onProgress, "running_init_script", "Init script complete", "done");
       } catch (e) {
         if (e instanceof SessionCreationError) throw e;
-        containerManager.removeContainer(tempId);
+        incusManager.removeContainer(tempId);
         const reason = e instanceof Error ? e.message : String(e);
         throw new SessionCreationError(
           `Init script execution failed: ${reason}`,
@@ -421,7 +419,6 @@ export async function executeSessionCreation(
       allowedTools: body.allowedTools as string[] | undefined,
       env: envVars,
       backendType: backend,
-      containerId,
       containerName,
       containerImage,
       containerCwd: containerInfo?.containerCwd,
@@ -431,7 +428,7 @@ export async function executeSessionCreation(
       sandboxSlug: sandboxEnabled ? ((body.sandboxSlug as string) || undefined) : undefined,
     });
   } catch (err) {
-    if (tempId) containerManager.removeContainer(tempId);
+    if (tempId) incusManager.removeContainer(tempId);
     const reason = err instanceof Error ? err.message : String(err);
     throw new SessionCreationError(
       `Failed to launch CLI: ${reason}`,
@@ -442,7 +439,7 @@ export async function executeSessionCreation(
 
   // -- Post-launch tracking --
   if (containerInfo) {
-    containerManager.retrack(containerInfo.containerId, session.sessionId);
+    incusManager.retrack(containerInfo.name, session.sessionId);
     wsBridge.markContainerized(session.sessionId, cwd!);
   }
 

@@ -50,8 +50,8 @@ export interface AgentConfig {
   /** Skill slugs to attach (from ~/.claude/skills/) */
   skills?: string[];
 
-  // ── Docker ──
-  /** Optional Docker container configuration */
+  // ── Container ──
+  /** Optional Incus container configuration */
   container?: {
     image?: string;
     ports?: number[];

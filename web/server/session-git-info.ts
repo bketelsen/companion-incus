@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import { resolve } from "node:path";
 import type { SessionState } from "./session-types.js";
-import { containerManager } from "./container-manager.js";
+import { incusManager } from "./incus-manager.js";
 
 function shellEscapeSingle(value: string): string {
   return value.replace(/'/g, "'\\''");
@@ -9,12 +9,11 @@ function shellEscapeSingle(value: string): string {
 
 function runGitCommand(sessionId: string, state: SessionState, command: string): string {
   if (state.is_containerized) {
-    const container = containerManager.getContainer(sessionId);
-    if (container?.containerId) {
+    const container = incusManager.getContainer(sessionId);
+    if (container?.name) {
       const containerCwd = container.containerCwd || "/workspace";
       const inner = `cd '${shellEscapeSingle(containerCwd)}' && ${command}`;
-      const dockerCmd = `docker exec ${container.containerId} sh -lc ${JSON.stringify(inner)}`;
-      return execSync(dockerCmd, { encoding: "utf-8", timeout: 3000 }).trim();
+      return incusManager.execInContainer(container.name, ["sh", "-lc", inner], 3000);
     }
     throw new Error("container not tracked");
   }
@@ -28,7 +27,7 @@ function runGitCommand(sessionId: string, state: SessionState, command: string):
 
 function mapContainerPathToHost(sessionId: string, state: SessionState, pathValue: string): string {
   if (!state.is_containerized || !pathValue) return pathValue;
-  const container = containerManager.getContainer(sessionId);
+  const container = incusManager.getContainer(sessionId);
   const containerCwd = (container?.containerCwd || "/workspace").replace(/\/+$/, "") || "/";
   const hostCwd = (container?.hostCwd || state.cwd || "").replace(/\/+$/, "") || "/";
 

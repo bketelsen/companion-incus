@@ -856,7 +856,7 @@ export class CodexAdapter implements IBackendAdapter {
    * Called both at the end of initialize() and as a safety net in
    * sendBrowserMessage() — the latter covers edge cases where the
    * post-init flush was skipped (e.g. transport was momentarily
-   * unavailable right after init completed in a Docker container).
+   * unavailable right after init completed in a container).
    */
   private flushPendingOutgoing(): void {
     if (this.pendingOutgoing.length === 0) return;

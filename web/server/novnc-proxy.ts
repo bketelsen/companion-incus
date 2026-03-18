@@ -1,6 +1,6 @@
 import type { ServerWebSocket } from "bun";
 import type { SocketData, NoVncSocketData } from "./ws-bridge-types.js";
-import { containerManager } from "./container-manager.js";
+import { incusManager } from "./incus-manager.js";
 
 const NOVNC_CONTAINER_PORT = 6080;
 
@@ -19,7 +19,7 @@ export class NoVncProxy {
   private pairs = new Map<ServerWebSocket<SocketData>, ProxyPair>();
 
   handleOpen(ws: ServerWebSocket<SocketData>, sessionId: string): void {
-    const container = containerManager.getContainer(sessionId);
+    const container = incusManager.getContainer(sessionId);
     if (!container) {
       console.warn(`[novnc-proxy] No container found for session ${sessionId}`);
       ws.close(1011, "Container not found");

@@ -24,7 +24,7 @@ export function registerSettingsRoutes(api: Hono): void {
       aiValidationAutoDeny: settings.aiValidationAutoDeny,
       publicUrl: settings.publicUrl,
       updateChannel: settings.updateChannel,
-      dockerAutoUpdate: settings.dockerAutoUpdate,
+      autoRebuildImage: settings.autoRebuildImage,
     });
   });
 
@@ -90,8 +90,8 @@ export function registerSettingsRoutes(api: Hono): void {
     if (body.linearOAuthWebhookSecret !== undefined && typeof body.linearOAuthWebhookSecret !== "string") {
       return c.json({ error: "linearOAuthWebhookSecret must be a string" }, 400);
     }
-    if (body.dockerAutoUpdate !== undefined && typeof body.dockerAutoUpdate !== "boolean") {
-      return c.json({ error: "dockerAutoUpdate must be a boolean" }, 400);
+    if (body.autoRebuildImage !== undefined && typeof body.autoRebuildImage !== "boolean") {
+      return c.json({ error: "autoRebuildImage must be a boolean" }, 400);
     }
     const hasAnyField = body.anthropicApiKey !== undefined || body.anthropicModel !== undefined
       || body.linearApiKey !== undefined || body.linearAutoTransition !== undefined
@@ -105,7 +105,7 @@ export function registerSettingsRoutes(api: Hono): void {
       || body.aiValidationAutoDeny !== undefined
       || body.publicUrl !== undefined
       || body.updateChannel !== undefined
-      || body.dockerAutoUpdate !== undefined;
+      || body.autoRebuildImage !== undefined;
     if (!hasAnyField) {
       return c.json({ error: "At least one settings field is required" }, 400);
     }
@@ -187,9 +187,9 @@ export function registerSettingsRoutes(api: Hono): void {
         body.updateChannel === "stable" || body.updateChannel === "prerelease"
           ? (body.updateChannel as UpdateChannel)
           : undefined,
-      dockerAutoUpdate:
-        typeof body.dockerAutoUpdate === "boolean"
-          ? body.dockerAutoUpdate
+      autoRebuildImage:
+        typeof body.autoRebuildImage === "boolean"
+          ? body.autoRebuildImage
           : undefined,
     });
 
@@ -211,7 +211,7 @@ export function registerSettingsRoutes(api: Hono): void {
       aiValidationAutoDeny: settings.aiValidationAutoDeny,
       publicUrl: settings.publicUrl,
       updateChannel: settings.updateChannel,
-      dockerAutoUpdate: settings.dockerAutoUpdate,
+      autoRebuildImage: settings.autoRebuildImage,
     });
   });
 

@@ -1,8 +1,8 @@
 import { resolve } from "node:path";
 import type { Hono } from "hono";
 import * as sandboxManager from "../sandbox-manager.js";
-import { containerManager, type ContainerConfig } from "../container-manager.js";
-import { imagePullManager } from "../image-pull-manager.js";
+import { incusManager, type IncusContainerConfig } from "../incus-manager.js";
+import { imageProvisionManager } from "../image-provision-manager.js";
 
 export function registerSandboxRoutes(
   api: Hono,
@@ -79,28 +79,28 @@ export function registerSandboxRoutes(
     if (!cwdStr.startsWith("/")) return c.json({ error: "Working directory must be an absolute path" }, 400);
     const cwd = resolve(cwdStr);
 
-    if (!containerManager.checkDocker()) return c.json({ error: "Docker is not available" }, 503);
+    if (!incusManager.checkIncus()) return c.json({ error: "Incus is not available" }, 503);
 
-    const effectiveImage = "the-companion:latest";
-    if (!imagePullManager.isReady(effectiveImage)) {
-      return c.json({ error: `Docker image ${effectiveImage} is not available. Pull it first.` }, 503);
+    const effectiveImage = "companion-incus";
+    if (!imageProvisionManager.isReady(effectiveImage)) {
+      return c.json({ error: `Container image ${effectiveImage} is not available. Build it first.` }, 503);
     }
 
     const tempId = `t${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
     let containerId: string | undefined;
 
     try {
-      const config: ContainerConfig = {
+      const config: IncusContainerConfig = {
         image: effectiveImage,
         ports: [],
       };
-      const containerInfo = containerManager.createContainer(tempId, cwd, config);
-      containerId = containerInfo.containerId;
+      const containerInfo = incusManager.createContainer(tempId, cwd, config);
+      containerId = containerInfo.name;
 
-      await containerManager.copyWorkspaceToContainer(containerId, cwd);
+      await incusManager.copyWorkspaceToContainer(containerId, cwd);
 
       const initTimeout = Number(process.env.COMPANION_INIT_SCRIPT_TIMEOUT) || 120_000;
-      const result = await containerManager.execInContainerAsync(
+      const result = await incusManager.execInContainerAsync(
         containerId,
         ["sh", "-lc", initScript],
         { timeout: initTimeout },
@@ -120,7 +120,7 @@ export function registerSandboxRoutes(
       return c.json({ success: false, exitCode: -1, output: msg }, 500);
     } finally {
       if (containerId) {
-        try { containerManager.removeContainer(tempId); } catch { /* best effort cleanup */ }
+        try { incusManager.removeContainer(tempId); } catch { /* best effort cleanup */ }
       }
     }
   });

@@ -17,7 +17,8 @@ import type { TerminalManager } from "./terminal-manager.js";
 import * as gitUtils from "./git-utils.js";
 import * as sessionNames from "./session-names.js";
 import * as sessionLinearIssues from "./session-linear-issues.js";
-import { containerManager } from "./container-manager.js";
+import { incusManager } from "./incus-manager.js";
+import { imageProvisionManager } from "./image-provision-manager.js";
 import { registerFsRoutes } from "./routes/fs-routes.js";
 import { registerSkillRoutes } from "./routes/skills-routes.js";
 import { registerEnvRoutes } from "./routes/env-routes.js";
@@ -295,10 +296,10 @@ export function createRoutes(
     // If unavailable, fall through to host code-server with the host-mapped cwd.
     let hostFallbackCwd = session.cwd;
 
-    if (session.containerId) {
-      const container = containerManager.getContainer(id);
+    if (session.containerName) {
+      const container = incusManager.getContainer(id);
       const hasContainerCodeServer = container
-        && containerManager.hasBinaryInContainer(container.containerId, "code-server");
+        && incusManager.hasBinaryInContainer(container.name, "code-server");
 
       if (container && hasContainerCodeServer) {
         const editorPathSuffix = `?folder=${encodeURIComponent("/workspace")}`;
@@ -315,9 +316,9 @@ export function createRoutes(
         }
 
         try {
-          const alive = containerManager.isContainerAlive(container.containerId);
+          const alive = incusManager.isContainerAlive(container.name);
           if (alive === "stopped") {
-            containerManager.startContainer(container.containerId);
+            incusManager.startContainer(container.name);
           } else if (alive === "missing") {
             return c.json({
               available: false,
@@ -332,7 +333,7 @@ export function createRoutes(
             `nohup code-server --auth none --disable-telemetry --bind-addr 0.0.0.0:${VSCODE_EDITOR_CONTAINER_PORT} /workspace >/tmp/companion-code-server.log 2>&1 &`,
             "fi",
           ].join(" ");
-          containerManager.execInContainer(container.containerId, ["sh", "-lc", startCmd], 10_000);
+          incusManager.execInContainer(container.name, ["sh", "-lc", startCmd], 10_000);
 
           // Wait for code-server to be ready (up to 5s)
           const containerEditorUrl = `http://localhost:${portMapping.hostPort}${editorPathSuffix}`;
@@ -429,14 +430,14 @@ export function createRoutes(
     const session = launcher.getSession(id);
     if (!session) return c.json({ error: "Session not found" }, 404);
 
-    if (!session.containerId) {
+    if (!session.containerName) {
       return c.json({
         available: true,
         mode: "host" as const,
       });
     }
 
-    const container = containerManager.getContainer(id);
+    const container = incusManager.getContainer(id);
     if (!container) {
       return c.json({
         available: false,
@@ -445,9 +446,9 @@ export function createRoutes(
       });
     }
 
-    const alive = containerManager.isContainerAlive(container.containerId);
+    const alive = incusManager.isContainerAlive(container.name);
     if (alive === "stopped") {
-      containerManager.startContainer(container.containerId);
+      incusManager.startContainer(container.name);
     } else if (alive === "missing") {
       return c.json({
         available: false,
@@ -467,13 +468,13 @@ export function createRoutes(
       });
     }
 
-    const hasXvfb = containerManager.hasBinaryInContainer(container.containerId, "Xvfb");
-    const hasWebsockify = containerManager.hasBinaryInContainer(container.containerId, "websockify");
+    const hasXvfb = incusManager.hasBinaryInContainer(container.name, "Xvfb");
+    const hasWebsockify = incusManager.hasBinaryInContainer(container.name, "websockify");
     if (!hasXvfb || !hasWebsockify) {
       return c.json({
         available: false,
         mode: "container" as const,
-        message: "Browser preview requires Xvfb and noVNC in the container image. Rebuild with the latest the-companion image.",
+        message: "Browser preview requires Xvfb and noVNC in the container image. Rebuild with the latest companion-incus image.",
       });
     }
 
@@ -493,8 +494,8 @@ export function createRoutes(
         "fi",
       ].join("\n");
 
-      await containerManager.execInContainerAsync(
-        container.containerId,
+      await incusManager.execInContainerAsync(
+        container.name,
         ["sh", "-c", startScript],
         { timeout: 15_000 },
       );
@@ -527,8 +528,8 @@ export function createRoutes(
         "fi",
       ].join("\n");
 
-      await containerManager.execInContainerAsync(
-        container.containerId,
+      await incusManager.execInContainerAsync(
+        container.name,
         ["sh", "-c", launchChrome],
         { timeout: 10_000 },
       );
@@ -579,7 +580,7 @@ export function createRoutes(
     const body = await c.req.json().catch(() => ({} as { url?: string }));
     const session = launcher.getSession(id);
     if (!session) return c.json({ error: "Session not found" }, 404);
-    if (!session.containerId) return c.json({ error: "Not a container session" }, 400);
+    if (!session.containerName) return c.json({ error: "Not a container session" }, 400);
 
     const url = body.url;
     if (!url || typeof url !== "string") return c.json({ error: "url is required" }, 400);
@@ -594,7 +595,7 @@ export function createRoutes(
       return c.json({ error: "Invalid URL" }, 400);
     }
 
-    const container = containerManager.getContainer(id);
+    const container = incusManager.getContainer(id);
     if (!container) return c.json({ error: "Container not found" }, 404);
 
     try {
@@ -608,8 +609,8 @@ export function createRoutes(
         `xdotool type --clearmodifiers ${shellEscapeArg(url)}`,
         "xdotool key --clearmodifiers Return",
       ].join(" && ");
-      await containerManager.execInContainerAsync(
-        container.containerId,
+      await incusManager.execInContainerAsync(
+        container.name,
         ["sh", "-c", navScript],
         { timeout: 10_000 },
       );
@@ -624,9 +625,9 @@ export function createRoutes(
     const id = c.req.param("id");
     const session = launcher.getSession(id);
     if (!session) return c.json({ error: "Session not found" }, 404);
-    if (!session.containerId) return c.json({ error: "Not a container session" }, 400);
+    if (!session.containerName) return c.json({ error: "Not a container session" }, 400);
 
-    const container = containerManager.getContainer(id);
+    const container = incusManager.getContainer(id);
     if (!container) return c.json({ error: "Container not found" }, 404);
 
     const portMapping = container.portMappings.find(
@@ -775,9 +776,9 @@ export function createRoutes(
       // so pkill -f matches it reliably.
       // Use execFileSync (array form) to avoid shell injection — taskId is passed
       // as an argument, never interpolated into a shell string.
-      if (session.containerId) {
-        containerManager.execInContainer(
-          session.containerId,
+      if (session.containerName) {
+        incusManager.execInContainer(
+          session.containerName,
           ["pkill", "-f", taskId],
           5_000,
         );
@@ -817,9 +818,9 @@ export function createRoutes(
         continue;
       }
       try {
-        if (session.containerId) {
-          containerManager.execInContainer(
-            session.containerId,
+        if (session.containerName) {
+          incusManager.execInContainer(
+            session.containerName,
             ["sh", "-c", `pkill -f ${shellEscapeArg(taskId)} 2>/dev/null; true`],
             5_000,
           );
@@ -857,7 +858,7 @@ export function createRoutes(
     "launchd", "mDNSResponder", "rapportd", "systemd",
     "sshd", "cupsd", "httpd", "nginx", "postgres", "mysqld",
     "Cursor", "Code", "Electron", "WindowServer", "BetterDisplay",
-    "com.docker", "Docker", "docker-proxy", "vpnkit",
+    "incusd", "lxd",
     "Dropbox", "Creative Cloud", "zoom.us",
     "ControlCenter", "Finder", "loginwindow", "SystemUIServer",
   ]);
@@ -885,9 +886,9 @@ export function createRoutes(
 
     try {
       let raw: string;
-      if (session.containerId) {
-        raw = containerManager.execInContainer(
-          session.containerId,
+      if (session.containerName) {
+        raw = incusManager.execInContainer(
+          session.containerName,
           ["sh", "-c", "lsof -iTCP -sTCP:LISTEN -P -n 2>/dev/null || ss -tlnp 2>/dev/null || true"],
           5_000,
         );
@@ -947,9 +948,9 @@ export function createRoutes(
         let cwd: string | undefined;
         let startedAt: number | undefined;
         try {
-          if (session.containerId) {
-            fullCommand = containerManager.execInContainer(
-              session.containerId,
+          if (session.containerName) {
+            fullCommand = incusManager.execInContainer(
+              session.containerName,
               ["ps", "-p", String(pid), "-o", "args="],
               2_000,
             ).trim();
@@ -964,9 +965,9 @@ export function createRoutes(
         }
 
         try {
-          if (session.containerId) {
-            const cwdRaw = containerManager.execInContainer(
-              session.containerId,
+          if (session.containerName) {
+            const cwdRaw = incusManager.execInContainer(
+              session.containerName,
               ["sh", "-c", `readlink /proc/${pid}/cwd 2>/dev/null || true`],
               2_000,
             ).trim();
@@ -983,9 +984,9 @@ export function createRoutes(
         }
 
         try {
-          if (session.containerId) {
-            const startRaw = containerManager.execInContainer(
-              session.containerId,
+          if (session.containerName) {
+            const startRaw = incusManager.execInContainer(
+              session.containerName,
               ["sh", "-c", `ps -p ${pid} -o lstart= 2>/dev/null || true`],
               2_000,
             );
@@ -1043,9 +1044,9 @@ export function createRoutes(
     }
 
     try {
-      if (session.containerId) {
-        containerManager.execInContainer(
-          session.containerId,
+      if (session.containerName) {
+        incusManager.execInContainer(
+          session.containerName,
           ["kill", "-TERM", String(pid)],
           5_000,
         );
@@ -1227,14 +1228,56 @@ export function createRoutes(
   // ─── Containers ─────────────────────────────────────────────────
 
   api.get("/containers/status", (c) => {
-    const available = containerManager.checkDocker();
-    const version = available ? containerManager.getDockerVersion() : null;
+    const available = incusManager.checkIncus();
+    const version = available ? incusManager.getIncusVersion() : null;
     return c.json({ available, version });
   });
 
   api.get("/containers/images", (c) => {
-    const images = containerManager.listImages();
+    const images = incusManager.listImages();
     return c.json(images);
+  });
+
+  // ─── Incus provisioning ───────────────────────────────────────────
+
+  // GET /api/incus/provision-script
+  api.get("/incus/provision-script", async (c) => {
+    const { readFileSync } = await import("node:fs");
+    const script = imageProvisionManager.ensureProvisionScript();
+    try {
+      const content = readFileSync(script, "utf-8");
+      return c.json({ path: script, content });
+    } catch {
+      return c.json({ path: script, content: "" }, 404);
+    }
+  });
+
+  // PUT /api/incus/provision-script
+  api.put("/incus/provision-script", async (c) => {
+    const { writeFileSync, mkdirSync } = await import("node:fs");
+    const { dirname } = await import("node:path");
+    const body = await c.req.json();
+    const script = imageProvisionManager.ensureProvisionScript();
+    mkdirSync(dirname(script), { recursive: true });
+    writeFileSync(script, body.content, "utf-8");
+    return c.json({ ok: true, path: script });
+  });
+
+  // POST /api/incus/provision-script/reset
+  api.post("/incus/provision-script/reset", async (c) => {
+    imageProvisionManager.resetProvisionScript();
+    return c.json({ ok: true });
+  });
+
+  // GET /api/incus/profiles
+  api.get("/incus/profiles", async (c) => {
+    try {
+      const { execSync } = await import("node:child_process");
+      const raw = execSync("incus profile list --format json", { encoding: "utf-8", timeout: 8000 }).trim();
+      return c.json(JSON.parse(raw));
+    } catch {
+      return c.json([], 500);
+    }
   });
 
   registerFsRoutes(api);

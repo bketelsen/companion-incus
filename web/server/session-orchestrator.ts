@@ -4,9 +4,9 @@ import type { SessionStore } from "./session-store.js";
 import type { WorktreeTracker } from "./worktree-tracker.js";
 import type { AgentExecutor } from "./agent-executor.js";
 import type { BackendType, CreationStepId } from "./session-types.js";
-import type { ContainerConfig, ContainerInfo } from "./container-manager.js";
-import { containerManager } from "./container-manager.js";
-import { imagePullManager } from "./image-pull-manager.js";
+import type { IncusIncusContainerConfig, IncusIncusContainerInfo } from "./incus-manager.js";
+import { incusManager } from "./incus-manager.js";
+import { imageProvisionManager } from "./image-provision-manager.js";
 import * as envManager from "./env-manager.js";
 import * as sandboxManager from "./sandbox-manager.js";
 import * as gitUtils from "./git-utils.js";
@@ -272,14 +272,14 @@ export class SessionOrchestrator {
         }
       }
 
-      // Resolve Docker image early
+      // Resolve container image early
       let effectiveImage: string | null = null;
       if (sandboxEnabled) {
-        effectiveImage = "the-companion:latest";
+        effectiveImage = "companion-incus";
       } else if (body.container?.image) {
         effectiveImage = body.container.image;
       }
-      const isDockerSession = !!effectiveImage;
+      const isContainerSession = !!effectiveImage;
 
       if (onProgress) await onProgress("resolving_env", "Environment resolved", "done");
 
@@ -292,7 +292,7 @@ export class SessionOrchestrator {
       }
 
       // --- Step: Git operations (host only) ---
-      if (!isDockerSession && body.useWorktree && body.branch && cwd) {
+      if (!isContainerSession && body.useWorktree && body.branch && cwd) {
         const repoInfo = gitUtils.getRepoInfo(cwd);
         if (repoInfo) {
           if (onProgress) await onProgress("fetching_git", "Fetching from remote...", "in_progress");
@@ -318,7 +318,7 @@ export class SessionOrchestrator {
           };
         }
         if (onProgress) await onProgress("creating_worktree", "Worktree ready", "done");
-      } else if (!isDockerSession && body.branch && cwd) {
+      } else if (!isContainerSession && body.branch && cwd) {
         const repoInfo = gitUtils.getRepoInfo(cwd);
         if (repoInfo) {
           if (onProgress) await onProgress("fetching_git", "Fetching from remote...", "in_progress");
@@ -346,8 +346,7 @@ export class SessionOrchestrator {
         }
       }
 
-      let containerInfo: ContainerInfo | undefined;
-      let containerId: string | undefined;
+      let containerInfo: IncusContainerInfo | undefined;
       let containerName: string | undefined;
       let containerImage: string | undefined;
 
@@ -371,36 +370,36 @@ export class SessionOrchestrator {
 
       // --- Step: Container setup ---
       if (effectiveImage) {
-        if (!imagePullManager.isReady(effectiveImage)) {
-          const pullState = imagePullManager.getState(effectiveImage);
+        if (!imageProvisionManager.isReady(effectiveImage)) {
+          const pullState = imageProvisionManager.getState(effectiveImage);
           if (pullState.status === "idle" || pullState.status === "error") {
-            imagePullManager.ensureImage(effectiveImage);
+            imageProvisionManager.ensureImage(effectiveImage);
           }
 
           if (onProgress) {
-            await onProgress("pulling_image", "Pulling Docker image...", "in_progress");
-            const unsub = imagePullManager.onProgress(effectiveImage, (line: string) => {
-              onProgress("pulling_image", "Pulling Docker image...", "in_progress", line).catch(() => {});
+            await onProgress("pulling_image", "Building container image...", "in_progress");
+            const unsub = imageProvisionManager.onProgress(effectiveImage, (line: string) => {
+              onProgress("pulling_image", "Building container image...", "in_progress", line).catch(() => {});
             });
-            const ready = await imagePullManager.waitForReady(effectiveImage, 300_000);
+            const ready = await imageProvisionManager.waitForReady(effectiveImage, 300_000);
             unsub();
             if (ready) {
               await onProgress("pulling_image", "Image ready", "done");
             } else {
-              const state = imagePullManager.getState(effectiveImage);
+              const state = imageProvisionManager.getState(effectiveImage);
               return {
                 ok: false,
-                error: state.error || `Docker image ${effectiveImage} could not be pulled or built.`,
+                error: state.error || `Container image ${effectiveImage} could not be built.`,
                 status: 503,
               };
             }
           } else {
-            const ready = await imagePullManager.waitForReady(effectiveImage, 300_000);
+            const ready = await imageProvisionManager.waitForReady(effectiveImage, 300_000);
             if (!ready) {
-              const state = imagePullManager.getState(effectiveImage);
+              const state = imageProvisionManager.getState(effectiveImage);
               return {
                 ok: false,
-                error: state.error || `Docker image ${effectiveImage} could not be pulled or built.`,
+                error: state.error || `Container image ${effectiveImage} could not be built.`,
                 status: 503,
               };
             }
@@ -421,24 +420,23 @@ export class SessionOrchestrator {
           ])),
           { port: NOVNC_CONTAINER_PORT, hostIp: "127.0.0.1" },
         ];
-        const cConfig: ContainerConfig = {
+        const cConfig: IncusContainerConfig = {
           image: effectiveImage,
           ports: containerPorts,
           volumes: body.container?.volumes,
           env: { ...(envVars ?? {}), DISPLAY: ":99" },
-          privileged: sandboxEnabled && effectiveImage === "the-companion:latest",
+          nesting: sandboxEnabled && effectiveImage === "companion-incus",
         };
         try {
-          containerInfo = containerManager.createContainer(tempId, cwd!, cConfig);
+          containerInfo = incusManager.createContainer(tempId, cwd!, cConfig);
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
           return {
             ok: false,
-            error: `Docker is required to run this environment image (${effectiveImage}) but container startup failed: ${reason}`,
+            error: `Incus is required to run this environment image (${effectiveImage}) but container startup failed: ${reason}`,
             status: 503,
           };
         }
-        containerId = containerInfo.containerId;
         containerName = containerInfo.name;
         containerImage = effectiveImage;
         if (onProgress) await onProgress("creating_container", "Container running", "done");
@@ -446,11 +444,11 @@ export class SessionOrchestrator {
         // Copy workspace
         if (onProgress) await onProgress("copying_workspace", "Copying workspace files...", "in_progress");
         try {
-          await containerManager.copyWorkspaceToContainer(containerInfo.containerId, cwd!);
-          containerManager.reseedGitAuth(containerInfo.containerId);
+          await incusManager.copyWorkspaceToContainer(containerInfo.name, cwd!);
+          incusManager.reseedGitAuth(containerInfo.name);
           if (onProgress) await onProgress("copying_workspace", "Workspace copied", "done");
         } catch (err) {
-          containerManager.removeContainer(tempId);
+          incusManager.removeContainer(tempId);
           const reason = err instanceof Error ? err.message : String(err);
           return { ok: false, error: `Failed to copy workspace to container: ${reason}`, status: 503 };
         }
@@ -459,7 +457,7 @@ export class SessionOrchestrator {
         if (body.branch) {
           const repoInfo = cwd ? gitUtils.getRepoInfo(cwd) : null;
           if (onProgress) await onProgress("fetching_git", "Fetching from remote (in container)...", "in_progress");
-          const gitResult = containerManager.gitOpsInContainer(containerInfo.containerId, {
+          const gitResult = incusManager.gitOpsInContainer(containerInfo.name, {
             branch: body.branch,
             currentBranch: repoInfo?.currentBranch || "HEAD",
             createBranch: body.createBranch,
@@ -477,7 +475,7 @@ export class SessionOrchestrator {
             console.warn(`[orchestrator] In-container git ops warnings: ${gitResult.errors.join("; ")}`);
           }
           if (!gitResult.checkoutOk) {
-            containerManager.removeContainer(tempId);
+            incusManager.removeContainer(tempId);
             return {
               ok: false,
               error: `Failed to checkout branch "${body.branch}" inside container: ${gitResult.errors.join("; ")}`,
@@ -493,8 +491,8 @@ export class SessionOrchestrator {
           try {
             console.log(`[orchestrator] Running init script for sandbox "${companionSandbox?.name || "sandbox"}" in container ${containerInfo.name}...`);
             const initTimeout = Number(process.env.COMPANION_INIT_SCRIPT_TIMEOUT) || 120_000;
-            const result = await containerManager.execInContainerAsync(
-              containerInfo.containerId,
+            const result = await incusManager.execInContainerAsync(
+              containerInfo.name,
               ["sh", "-lc", initScript],
               {
                 timeout: initTimeout,
@@ -505,7 +503,7 @@ export class SessionOrchestrator {
             );
             if (result.exitCode !== 0) {
               console.error(`[orchestrator] Init script failed (exit ${result.exitCode}):\n${result.output}`);
-              containerManager.removeContainer(tempId);
+              incusManager.removeContainer(tempId);
               const truncated = result.output.length > 2000
                 ? result.output.slice(0, 500) + "\n...[truncated]...\n" + result.output.slice(-1500)
                 : result.output;
@@ -514,7 +512,7 @@ export class SessionOrchestrator {
             if (onProgress) await onProgress("running_init_script", "Init script complete", "done");
             console.log(`[orchestrator] Init script completed successfully for sandbox "${companionSandbox?.name || "sandbox"}"`);
           } catch (e) {
-            containerManager.removeContainer(tempId);
+            incusManager.removeContainer(tempId);
             const reason = e instanceof Error ? e.message : String(e);
             return { ok: false, error: `Init script execution failed: ${reason}`, status: 503 };
           }
@@ -537,7 +535,6 @@ export class SessionOrchestrator {
           allowedTools: body.allowedTools,
           env: envVars,
           backendType: backend,
-          containerId,
           containerName,
           containerImage,
           containerCwd: containerInfo?.containerCwd,
@@ -548,14 +545,14 @@ export class SessionOrchestrator {
         });
       } catch (e) {
         // Clean up container if it was created but launch failed
-        if (containerId) containerManager.removeContainer(containerId);
+        if (containerName) incusManager.removeContainer(containerName);
         const reason = e instanceof Error ? e.message : String(e);
         return { ok: false, error: `Failed to launch CLI: ${reason}`, status: 503 };
       }
 
       // Post-launch wiring
       if (containerInfo) {
-        containerManager.retrack(containerInfo.containerId, session.sessionId);
+        incusManager.retrack(containerInfo.name, session.sessionId);
         this.wsBridge.markContainerized(session.sessionId, cwd!);
       }
 
@@ -595,7 +592,7 @@ export class SessionOrchestrator {
   async killSession(sessionId: string): Promise<{ ok: boolean }> {
     const killed = await this.launcher.kill(sessionId);
     if (killed) {
-      containerManager.removeContainer(sessionId);
+      incusManager.removeContainer(sessionId);
     }
     return { ok: killed };
   }
@@ -655,7 +652,7 @@ export class SessionOrchestrator {
     }
 
     await this.launcher.kill(sessionId);
-    containerManager.removeContainer(sessionId);
+    incusManager.removeContainer(sessionId);
     this.prPoller.unwatch(sessionId);
 
     const worktreeResult = this.cleanupWorktree(sessionId, options?.force);
@@ -669,7 +666,7 @@ export class SessionOrchestrator {
 
   async deleteSession(sessionId: string): Promise<DeleteSessionResult> {
     await this.launcher.kill(sessionId);
-    containerManager.removeContainer(sessionId);
+    incusManager.removeContainer(sessionId);
     const worktreeResult = this.cleanupWorktree(sessionId, true);
     this.prPoller.unwatch(sessionId);
     sessionLinearIssues.removeLinearIssue(sessionId);
@@ -744,11 +741,11 @@ export class SessionOrchestrator {
     // process is dead. If the kernel recycles the PID to a different process,
     // kill(pid, 0) would incorrectly succeed, preventing any relaunch.
     // For containerized sessions, use container liveness instead of PID check
-    // (the PID is the `docker exec` wrapper, which exits immediately for some
+    // (the PID is the `incus exec` wrapper, which exits immediately for some
     // transports and is unreliable for container health).
     if (freshInfo && freshInfo.state !== "exited") {
-      if (freshInfo.containerId) {
-        const containerState = containerManager.isContainerAlive(freshInfo.containerId);
+      if (freshInfo.containerName) {
+        const containerState = incusManager.isContainerAlive(freshInfo.containerName);
         if (containerState === "running") {
           this.relaunchingSet.delete(sessionId);
           return;

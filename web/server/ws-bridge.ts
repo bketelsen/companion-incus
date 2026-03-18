@@ -773,7 +773,7 @@ export class WsBridge {
     // Per the SDK protocol, the first user message triggers system.init,
     // so we must send it as soon as the WebSocket is open — NOT wait for
     // system.init (which would create a deadlock for slow-starting sessions
-    // like Docker containers where the user message arrives before CLI connects).
+    // like containers where the user message arrives before CLI connects).
     if (session.pendingMessages.length > 0) {
       console.log(`[ws-bridge] Flushing ${session.pendingMessages.length} queued message(s) on CLI connect for session ${sessionId}`);
       const queued = session.pendingMessages.splice(0);

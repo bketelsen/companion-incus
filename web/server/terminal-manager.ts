@@ -2,6 +2,7 @@ import type { ServerWebSocket } from "bun";
 import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { SocketData } from "./ws-bridge.js";
+import { incusManager } from "./incus-manager.js";
 
 /** Bun's PTY terminal handle exposed on proc when spawned with `terminal` option */
 interface BunTerminalHandle {
@@ -13,7 +14,7 @@ interface BunTerminalHandle {
 interface TerminalInstance {
   id: string;
   cwd: string;
-  containerId?: string;
+  containerName?: string;
   proc: ReturnType<typeof Bun.spawn>;
   terminal: BunTerminalHandle;
   browserSockets: Set<ServerWebSocket<SocketData>>;
@@ -32,28 +33,21 @@ export class TerminalManager {
   private instances = new Map<string, TerminalInstance>();
 
   /** Spawn a terminal in the given directory (host or container). */
-  spawn(cwd: string, cols = 80, rows = 24, options?: { containerId?: string }): string {
+  spawn(cwd: string, cols = 80, rows = 24, options?: { containerName?: string }): string {
     const id = randomUUID();
-    const containerId = options?.containerId?.trim() || undefined;
+    const containerName = options?.containerName?.trim() || undefined;
     const sockets = new Set<ServerWebSocket<SocketData>>();
     const shell = resolveShell();
-    const cmd = containerId
-      ? [
-          "docker",
-          "exec",
-          "-i",
-          "-t",
-          "-w",
-          cwd,
-          containerId,
+    const cmd = containerName
+      ? incusManager.buildExecCommand(containerName, [
           "sh",
           "-lc",
           "if command -v bash >/dev/null 2>&1; then exec bash -l; else exec sh -l; fi",
-        ]
+        ], { cwd })
       : [shell, "-l"];
 
     const proc = Bun.spawn(cmd, {
-      cwd: containerId ? undefined : cwd,
+      cwd: containerName ? undefined : cwd,
       env: { ...process.env, TERM: "xterm-256color", CLAUDECODE: undefined },
       terminal: {
         cols,
@@ -90,7 +84,7 @@ export class TerminalManager {
     this.instances.set(id, {
       id,
       cwd,
-      containerId,
+      containerName,
       proc,
       terminal,
       browserSockets: sockets,
@@ -99,7 +93,7 @@ export class TerminalManager {
       orphanTimer: null,
     });
     console.log(
-      `[terminal] Spawned terminal ${id} in ${cwd}${containerId ? ` (container ${containerId.slice(0, 12)})` : ""} (${containerId ? "docker-shell" : shell}, ${cols}x${rows})`,
+      `[terminal] Spawned terminal ${id} in ${cwd}${containerName ? ` (container ${containerName})` : ""} (${containerName ? "incus-shell" : shell}, ${cols}x${rows})`,
     );
 
     // Handle process exit
@@ -190,15 +184,15 @@ export class TerminalManager {
   }
 
   /** Get current terminal info */
-  getInfo(terminalId?: string): { id: string; cwd: string; containerId?: string } | null {
+  getInfo(terminalId?: string): { id: string; cwd: string; containerName?: string } | null {
     if (terminalId) {
       const inst = this.instances.get(terminalId);
       if (!inst) return null;
-      return { id: inst.id, cwd: inst.cwd, containerId: inst.containerId };
+      return { id: inst.id, cwd: inst.cwd, containerName: inst.containerName };
     }
     const first = this.instances.values().next().value as TerminalInstance | undefined;
     if (!first) return null;
-    return { id: first.id, cwd: first.cwd, containerId: first.containerId };
+    return { id: first.id, cwd: first.cwd, containerName: first.containerName };
   }
 
   /** Attach a browser WebSocket to the terminal */

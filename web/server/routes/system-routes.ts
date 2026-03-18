@@ -11,7 +11,7 @@ import {
 } from "../update-checker.js";
 import { refreshServiceDefinition } from "../service.js";
 import { getSettings } from "../settings-manager.js";
-import { imagePullManager } from "../image-pull-manager.js";
+import { imageProvisionManager } from "../image-provision-manager.js";
 
 export function registerSystemRoutes(
   api: Hono,
@@ -129,19 +129,19 @@ export function registerSystemRoutes(
           return;
         }
 
-        // Re-pull Docker image if auto-update is enabled
-        if (getSettings().dockerAutoUpdate) {
+        // Rebuild container image if auto-rebuild is enabled
+        if (getSettings().autoRebuildImage) {
           try {
-            console.log("[update] Re-pulling Docker image (dockerAutoUpdate enabled)...");
-            imagePullManager.pull("the-companion:latest");
-            const ready = await imagePullManager.waitForReady("the-companion:latest", 120_000);
+            console.log("[update] Rebuilding container image (autoRebuildImage enabled)...");
+            imageProvisionManager.rebuild("companion-incus");
+            const ready = await imageProvisionManager.waitForReady("companion-incus", 120_000);
             if (ready) {
-              console.log("[update] Docker image re-pull complete.");
+              console.log("[update] Container image rebuild complete.");
             } else {
-              console.warn("[update] Docker image re-pull failed or timed out, continuing with restart.");
+              console.warn("[update] Container image rebuild failed or timed out, continuing with restart.");
             }
           } catch (err) {
-            console.warn("[update] Docker image re-pull error, continuing:", err);
+            console.warn("[update] Container image rebuild error, continuing:", err);
           }
         }
 
@@ -197,10 +197,10 @@ export function registerSystemRoutes(
   });
 
   api.post("/terminal/spawn", async (c) => {
-    const body = await c.req.json<{ cwd: string; cols?: number; rows?: number; containerId?: string }>();
+    const body = await c.req.json<{ cwd: string; cols?: number; rows?: number; containerName?: string }>();
     if (!body.cwd) return c.json({ error: "cwd is required" }, 400);
     const terminalId = deps.terminalManager.spawn(body.cwd, body.cols, body.rows, {
-      containerId: body.containerId,
+      containerName: body.containerName,
     });
     return c.json({ terminalId });
   });

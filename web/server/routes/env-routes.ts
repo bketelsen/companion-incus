@@ -2,8 +2,8 @@ import { existsSync } from "node:fs";
 import type { Hono } from "hono";
 import { join } from "node:path";
 import * as envManager from "../env-manager.js";
-import { containerManager } from "../container-manager.js";
-import { imagePullManager } from "../image-pull-manager.js";
+import { incusManager } from "../incus-manager.js";
+import { imageProvisionManager } from "../image-provision-manager.js";
 
 export function registerEnvRoutes(
   api: Hono,
@@ -58,38 +58,39 @@ export function registerEnvRoutes(
     }
   });
 
-  api.post("/docker/build-base", async (c) => {
-    if (!containerManager.checkDocker()) return c.json({ error: "Docker is not available" }, 503);
-    const dockerfilePath = join(options.webDir, "docker", "Dockerfile.the-companion");
-    if (!existsSync(dockerfilePath)) {
-      return c.json({ error: "Base Dockerfile not found at " + dockerfilePath }, 404);
-    }
+  api.post("/incus/build-image", async (c) => {
+    if (!incusManager.checkIncus()) return c.json({ error: "Incus is not available" }, 503);
     try {
-      const log = containerManager.buildImage(dockerfilePath, "the-companion:latest");
-      return c.json({ success: true, log });
+      imageProvisionManager.rebuild("companion-incus");
+      const ready = await imageProvisionManager.waitForReady("companion-incus", 300_000);
+      if (ready) {
+        return c.json({ success: true });
+      }
+      const state = imageProvisionManager.getState("companion-incus");
+      return c.json({ success: false, error: state.error || "Build timed out" }, 500);
     } catch (e: unknown) {
       return c.json({ success: false, error: e instanceof Error ? e.message : String(e) }, 500);
     }
   });
 
-  api.get("/docker/base-image", (c) => {
-    const exists = containerManager.imageExists("the-companion:latest");
-    return c.json({ exists, image: "the-companion:latest" });
+  api.get("/incus/image-status", (c) => {
+    const exists = incusManager.imageExists("companion-incus");
+    return c.json({ exists, image: "companion-incus" });
   });
 
   api.get("/images/:tag/status", (c) => {
     const tag = decodeURIComponent(c.req.param("tag"));
     if (!tag) return c.json({ error: "Image tag is required" }, 400);
-    return c.json(imagePullManager.getState(tag));
+    return c.json(imageProvisionManager.getState(tag));
   });
 
   api.post("/images/:tag/pull", (c) => {
     const tag = decodeURIComponent(c.req.param("tag"));
     if (!tag) return c.json({ error: "Image tag is required" }, 400);
-    if (!containerManager.checkDocker()) {
-      return c.json({ error: "Docker is not available" }, 503);
+    if (!incusManager.checkIncus()) {
+      return c.json({ error: "Incus is not available" }, 503);
     }
-    imagePullManager.pull(tag);
-    return c.json({ ok: true, state: imagePullManager.getState(tag) });
+    imageProvisionManager.rebuild(tag);
+    return c.json({ ok: true, state: imageProvisionManager.getState(tag) });
   });
 }
