@@ -64,4 +64,10 @@ import { withBase } from 'vitepress'
       or reject risky actions before they execute.
     </p>
   </section>
+
+  <!-- Footer -->
+  <footer class="home-footer">
+    <p class="home-footer-message">Based on <a href="https://github.com/The-Vibe-Company/companion">The Companion</a> by The Vibe Company</p>
+    <p class="home-footer-copyright">Released under the MIT License</p>
+  </footer>
 </template>
