@@ -792,6 +792,9 @@ describe("POST /api/sessions/:id/editor/start", () => {
       portMappings: [{ containerPort: 13337, hostPort: 49152 }],
       hostCwd: "/repo",
       containerCwd: "/workspace",
+      hostWorkspaceDir: "/tmp/companion-ws-test",
+      homeDir: "/home/code",
+      user: { uid: 1000, gid: 1000, name: "code" },
       state: "running",
     });
     vi.spyOn(incusManager, "hasBinaryInContainer").mockReturnValue(true);
@@ -4142,6 +4145,9 @@ describe("POST /api/sessions/:id/browser/start", () => {
       portMappings: [{ containerPort: 6080, hostPort: 49200 }],
       hostCwd: "/repo",
       containerCwd: "/workspace",
+      hostWorkspaceDir: "/tmp/companion-ws-test",
+      homeDir: "/home/code",
+      user: { uid: 1000, gid: 1000, name: "code" },
       state: "running",
     });
     vi.spyOn(incusManager, "isContainerAlive").mockReturnValue("running");
@@ -4174,6 +4180,9 @@ describe("POST /api/sessions/:id/browser/start", () => {
       portMappings: [{ containerPort: 6080, hostPort: 49200 }],
       hostCwd: "/repo",
       containerCwd: "/workspace",
+      hostWorkspaceDir: "/tmp/companion-ws-test",
+      homeDir: "/home/code",
+      user: { uid: 1000, gid: 1000, name: "code" },
       state: "running",
     });
     vi.spyOn(incusManager, "hasBinaryInContainer").mockReturnValue(true);
@@ -4211,6 +4220,9 @@ describe("POST /api/sessions/:id/browser/start", () => {
       portMappings: [{ containerPort: 6080, hostPort: 49200 }],
       hostCwd: "/repo",
       containerCwd: "/workspace",
+      hostWorkspaceDir: "/tmp/companion-ws-test",
+      homeDir: "/home/code",
+      user: { uid: 1000, gid: 1000, name: "code" },
       state: "running",
     });
     vi.spyOn(incusManager, "hasBinaryInContainer").mockReturnValue(true);
@@ -4244,6 +4256,9 @@ describe("POST /api/sessions/:id/browser/start", () => {
       portMappings: [{ containerPort: 6080, hostPort: 49200 }],
       hostCwd: "/repo",
       containerCwd: "/workspace",
+      hostWorkspaceDir: "/tmp/companion-ws-test",
+      homeDir: "/home/code",
+      user: { uid: 1000, gid: 1000, name: "code" },
       state: "running",
     });
     vi.spyOn(incusManager, "hasBinaryInContainer").mockReturnValue(true);
@@ -4324,6 +4339,9 @@ describe("POST /api/sessions/:id/browser/navigate", () => {
       portMappings: [],
       hostCwd: "/repo",
       containerCwd: "/workspace",
+      hostWorkspaceDir: "/tmp/companion-ws-test",
+      homeDir: "/home/code",
+      user: { uid: 1000, gid: 1000, name: "code" },
       state: "running",
     });
     const execSpy = vi.spyOn(incusManager, "execInContainerAsync").mockResolvedValue({ exitCode: 0, output: "" });
@@ -4379,6 +4397,9 @@ describe("GET /api/sessions/:id/browser/proxy/*", () => {
       portMappings: [{ containerPort: 6080, hostPort: 49200 }],
       hostCwd: "/repo",
       containerCwd: "/workspace",
+      hostWorkspaceDir: "/tmp/companion-ws-test",
+      homeDir: "/home/code",
+      user: { uid: 1000, gid: 1000, name: "code" },
       state: "running",
     });
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(

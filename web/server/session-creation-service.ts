@@ -267,23 +267,22 @@ export async function executeSessionCreation(
     const requestedPorts = Array.isArray((body.container as Record<string, unknown>)?.ports)
       ? ((body.container as Record<string, unknown>).ports as number[]).map(Number).filter((n: number) => n > 0)
       : [];
-    const containerPorts: (number | { port: number; hostIp?: string })[] = [
+    const containerPorts: number[] = [
       ...Array.from(new Set([
         ...requestedPorts.filter((p: number) => p !== NOVNC_CONTAINER_PORT),
         VSCODE_EDITOR_CONTAINER_PORT,
         ...(backend === "codex" ? [CODEX_APP_SERVER_CONTAINER_PORT] : []),
+        NOVNC_CONTAINER_PORT,
       ])),
-      { port: NOVNC_CONTAINER_PORT, hostIp: "127.0.0.1" },
     ];
     const cConfig: IncusContainerConfig = {
       image: effectiveImage,
       ports: containerPorts,
-      volumes: (body.container as Record<string, unknown>)?.volumes as string[] | undefined,
       env: { ...(envVars ?? {}), DISPLAY: ":99" },
       nesting: sandboxEnabled && effectiveImage === "companion-incus",
     };
     try {
-      containerInfo = incusManager.createContainer(tempId, cwd!, cConfig);
+      containerInfo = await incusManager.createContainer(tempId, cwd!, cConfig);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       throw new SessionCreationError(
@@ -293,15 +292,15 @@ export async function executeSessionCreation(
         "creating_container",
       );
     }
-    containerName = containerInfo.name;
+    containerName = containerInfo!.name;
     containerImage = effectiveImage;
     await emit(onProgress, "creating_container", "Container running", "done");
 
     // -- Copy workspace --
     await emit(onProgress, "copying_workspace", "Copying workspace files...", "in_progress");
     try {
-      await incusManager.copyWorkspaceToContainer(containerInfo.name, cwd!);
-      incusManager.reseedGitAuth(containerInfo.name);
+      await incusManager.copyWorkspaceToContainer(containerInfo!.name, cwd!);
+      incusManager.reseedGitAuth(containerInfo!.name);
       await emit(onProgress, "copying_workspace", "Workspace copied", "done");
     } catch (err) {
       incusManager.removeContainer(tempId);
@@ -318,7 +317,7 @@ export async function executeSessionCreation(
       const repoInfo = cwd ? gitUtils.getRepoInfo(cwd) : null;
 
       await emit(onProgress, "fetching_git", "Fetching from remote (in container)...", "in_progress");
-      const gitResult = incusManager.gitOpsInContainer(containerInfo.name, {
+      const gitResult = incusManager.gitOpsInContainer(containerInfo!.name, {
         branch: body.branch as string,
         currentBranch: repoInfo?.currentBranch || "HEAD",
         createBranch: body.createBranch as boolean | undefined,
@@ -357,7 +356,7 @@ export async function executeSessionCreation(
       try {
         const initTimeout = Number(process.env.COMPANION_INIT_SCRIPT_TIMEOUT) || 120_000;
         const result = await incusManager.execInContainerAsync(
-          containerInfo.name,
+          containerInfo!.name,
           ["sh", "-lc", initScript],
           {
             timeout: initTimeout,
@@ -439,7 +438,7 @@ export async function executeSessionCreation(
 
   // -- Post-launch tracking --
   if (containerInfo) {
-    incusManager.retrack(containerInfo.name, session.sessionId);
+    incusManager.retrack(containerInfo!.name, session.sessionId);
     wsBridge.markContainerized(session.sessionId, cwd!);
   }
 

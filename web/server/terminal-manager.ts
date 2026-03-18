@@ -39,11 +39,14 @@ export class TerminalManager {
     const sockets = new Set<ServerWebSocket<SocketData>>();
     const shell = resolveShell();
     const cmd = containerName
-      ? incusManager.buildExecCommand(containerName, [
-          "sh",
-          "-lc",
-          "if command -v bash >/dev/null 2>&1; then exec bash -l; else exec sh -l; fi",
-        ], { cwd })
+      ? incusManager.buildExecCommand(containerName, {
+          cmd: [
+            "sh",
+            "-lc",
+            "if command -v bash >/dev/null 2>&1; then exec bash -l; else exec sh -l; fi",
+          ],
+          interactive: true,
+        })
       : [shell, "-l"];
 
     const proc = Bun.spawn(cmd, {

@@ -4,7 +4,7 @@ import type { SessionStore } from "./session-store.js";
 import type { WorktreeTracker } from "./worktree-tracker.js";
 import type { AgentExecutor } from "./agent-executor.js";
 import type { BackendType, CreationStepId } from "./session-types.js";
-import type { IncusIncusContainerConfig, IncusIncusContainerInfo } from "./incus-manager.js";
+import type { IncusContainerConfig, IncusContainerInfo } from "./incus-manager.js";
 import { incusManager } from "./incus-manager.js";
 import { imageProvisionManager } from "./image-provision-manager.js";
 import * as envManager from "./env-manager.js";
@@ -412,23 +412,22 @@ export class SessionOrchestrator {
         const requestedPorts = Array.isArray(body.container?.ports)
           ? body.container!.ports!.map(Number).filter((n: number) => n > 0)
           : [];
-        const containerPorts: (number | { port: number; hostIp?: string })[] = [
+        const containerPorts: number[] = [
           ...Array.from(new Set([
             ...requestedPorts.filter((p: number) => p !== NOVNC_CONTAINER_PORT),
             VSCODE_EDITOR_CONTAINER_PORT,
             ...(backend === "codex" ? [CODEX_APP_SERVER_CONTAINER_PORT] : []),
+            NOVNC_CONTAINER_PORT,
           ])),
-          { port: NOVNC_CONTAINER_PORT, hostIp: "127.0.0.1" },
         ];
         const cConfig: IncusContainerConfig = {
           image: effectiveImage,
           ports: containerPorts,
-          volumes: body.container?.volumes,
           env: { ...(envVars ?? {}), DISPLAY: ":99" },
           nesting: sandboxEnabled && effectiveImage === "companion-incus",
         };
         try {
-          containerInfo = incusManager.createContainer(tempId, cwd!, cConfig);
+          containerInfo = await incusManager.createContainer(tempId, cwd!, cConfig);
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
           return {

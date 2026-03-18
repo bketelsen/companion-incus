@@ -94,7 +94,7 @@ export function registerSandboxRoutes(
         image: effectiveImage,
         ports: [],
       };
-      const containerInfo = incusManager.createContainer(tempId, cwd, config);
+      const containerInfo = await incusManager.createContainer(tempId, cwd, config);
       containerName = containerInfo.name;
 
       await incusManager.copyWorkspaceToContainer(containerName, cwd);

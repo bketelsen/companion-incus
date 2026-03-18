@@ -629,6 +629,9 @@ describe("CLI handlers", () => {
       portMappings: [],
       hostCwd: "/Users/stan/Dev/myproject",
       containerCwd: "/workspace",
+      hostWorkspaceDir: "/tmp/companion-ws-test",
+      homeDir: "/home/code",
+      user: { uid: 1000, gid: 1000, name: "code" },
       state: "running",
     });
 
@@ -665,6 +668,9 @@ describe("CLI handlers", () => {
       portMappings: [],
       hostCwd: "/Users/stan/Dev/myproject",
       containerCwd: "/workspace",
+      hostWorkspaceDir: "/tmp/companion-ws-test",
+      homeDir: "/home/code",
+      user: { uid: 1000, gid: 1000, name: "code" },
       state: "running",
     });
 

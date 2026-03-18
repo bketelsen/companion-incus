@@ -312,7 +312,7 @@ describe("IncusManager", () => {
   // ─── Container Tracking ────────────────────────────────────────────────
 
   describe("container tracking", () => {
-    const makeInfo = (name: string): InstanceType<typeof IncusManager> extends { containers: Map<string, infer T> } ? T : never => ({
+    const makeInfo = (name: string) => ({
       name,
       image: "companion-incus",
       portMappings: [],

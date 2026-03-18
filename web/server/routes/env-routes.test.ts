@@ -14,7 +14,7 @@ vi.mock("../incus-manager.js", () => ({
   incusManager: {
     checkIncus: vi.fn(() => true),
     buildImageStreaming: vi.fn(async () => ({ success: true, log: "Built" })),
-    buildImage: vi.fn(() => "ok"),
+    buildImage: vi.fn(async () => ({ success: true, log: "ok" })),
     imageExists: vi.fn(() => false),
   },
 }));
@@ -259,7 +259,7 @@ describe("POST /api/incus/build-base", () => {
   it("builds the base image successfully when Incus and provision script exist", async () => {
     vi.mocked(incusManager.checkIncus).mockReturnValue(true);
     vi.mocked(existsSync).mockReturnValue(true);
-    vi.mocked(incusManager.buildImage).mockReturnValue("build log");
+    vi.mocked(incusManager.buildImage).mockResolvedValue({ success: true, log: "build log" });
 
     const res = await app.request("/api/incus/build-base", { method: "POST" });
 

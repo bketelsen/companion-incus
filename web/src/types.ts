@@ -88,7 +88,6 @@ export interface SdkSessionInfo {
   createdAt: number;
   archived?: boolean;
   containerName?: string;
-  containerName?: string;
   containerImage?: string;
   name?: string;
   backendType?: BackendType;
