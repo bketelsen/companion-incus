@@ -8,8 +8,6 @@ export default defineConfig({
   ignoreDeadLinks: [
     // localhost links are examples, not real links
     /^http:\/\/localhost/,
-    // Pages created in later migration tasks
-    /\/reference\/troubleshooting/,
   ],
 
   head: [
