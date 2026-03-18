@@ -248,7 +248,7 @@ export function HomePage() {
     });
   }, [backend]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When sandbox is enabled, check the-companion:latest image status
+  // When sandbox is enabled, check companion-incus image status
   useEffect(() => {
     if (sandboxImagePollRef.current) {
       clearInterval(sandboxImagePollRef.current);
@@ -258,7 +258,7 @@ export function HomePage() {
 
     if (!sandboxEnabled) return;
 
-    const effectiveImage = "the-companion:latest";
+    const effectiveImage = "companion-incus";
 
     const checkAndPull = () => {
       api.getImageStatus(effectiveImage).then((state) => {
@@ -1151,7 +1151,7 @@ export function HomePage() {
                       sandboxEnabled && !selectedSandbox ? "text-cc-primary font-medium" : "text-cc-fg"
                     }`}
                   >
-                    Default (the-companion:latest)
+                    Default (companion-incus)
                   </button>
                   {sandboxes.map((sb) => (
                     <button

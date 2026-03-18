@@ -22,8 +22,8 @@ vi.mock("../api.js", () => ({
   api: {
     getSettings: vi.fn().mockResolvedValue({ autoRebuildImage: false }),
     updateSettings: vi.fn().mockResolvedValue({}),
-    pullImage: vi.fn().mockResolvedValue({ ok: true, state: { image: "the-companion:latest", status: "pulling", progress: [] } }),
-    getImageStatus: vi.fn().mockResolvedValue({ image: "the-companion:latest", status: "pulling", progress: ["Pulling layer 1..."] }),
+    pullImage: vi.fn().mockResolvedValue({ ok: true, state: { image: "companion-incus", status: "pulling", progress: [] } }),
+    getImageStatus: vi.fn().mockResolvedValue({ image: "companion-incus", status: "pulling", progress: ["Pulling layer 1..."] }),
   },
 }));
 
@@ -126,7 +126,7 @@ describe("ImageUpdateDialog", () => {
       await vi.advanceTimersByTimeAsync(10);
     });
 
-    expect(mockedApi.pullImage).toHaveBeenCalledWith("the-companion:latest");
+    expect(mockedApi.pullImage).toHaveBeenCalledWith("companion-incus");
     expect(screen.getByText("Updating Sandbox Image...")).toBeTruthy();
   });
 
@@ -161,7 +161,7 @@ describe("ImageUpdateDialog", () => {
     });
 
     // Should have started pulling automatically without user interaction
-    expect(mockedApi.pullImage).toHaveBeenCalledWith("the-companion:latest");
+    expect(mockedApi.pullImage).toHaveBeenCalledWith("companion-incus");
     expect(screen.getByText("Updating Sandbox Image...")).toBeTruthy();
   });
 
@@ -169,7 +169,7 @@ describe("ImageUpdateDialog", () => {
     // After a successful pull, dialog should show the success state
     mockedApi.getSettings.mockResolvedValue({ autoRebuildImage: false });
     mockedApi.getImageStatus.mockResolvedValue({
-      image: "the-companion:latest",
+      image: "companion-incus",
       status: "ready",
       progress: ["Done"],
     });
@@ -200,7 +200,7 @@ describe("ImageUpdateDialog", () => {
     // Error state should be shown with a retry option
     mockedApi.getSettings.mockResolvedValue({ autoRebuildImage: false });
     mockedApi.getImageStatus.mockResolvedValue({
-      image: "the-companion:latest",
+      image: "companion-incus",
       status: "error",
       progress: ["Layer 1 failed"],
       error: "Network timeout",
@@ -234,7 +234,7 @@ describe("ImageUpdateDialog", () => {
     // Done button in the success state should close the dialog
     mockedApi.getSettings.mockResolvedValue({ autoRebuildImage: false });
     mockedApi.getImageStatus.mockResolvedValue({
-      image: "the-companion:latest",
+      image: "companion-incus",
       status: "ready",
       progress: [],
     });

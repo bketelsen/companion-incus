@@ -42,7 +42,7 @@ export function ImageUpdateDialog() {
     }
 
     pollRef.current = setInterval(() => {
-      api.getImageStatus("the-companion:latest")
+      api.getImageStatus("companion-incus")
         .then((state) => {
           setPullState(state);
           if (state.status === "ready") {
@@ -66,7 +66,7 @@ export function ImageUpdateDialog() {
 
   function triggerPull() {
     setPhase("pulling");
-    api.pullImage("the-companion:latest")
+    api.pullImage("companion-incus")
       .then((res) => {
         if (res.state) setPullState(res.state);
       })

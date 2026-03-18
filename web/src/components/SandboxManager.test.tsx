@@ -75,12 +75,12 @@ beforeEach(() => {
   // Default: Incus available, base image ready, one sandbox, server cwd
   mockListSandboxes.mockResolvedValue([makeSandbox()]);
   mockGetContainerStatus.mockResolvedValue({ available: true, version: "27.0.0" });
-  mockGetImageStatus.mockResolvedValue({ image: "the-companion:latest", status: "ready", progress: [] });
+  mockGetImageStatus.mockResolvedValue({ image: "companion-incus", status: "ready", progress: [] });
   mockCreateSandbox.mockResolvedValue(makeSandbox());
   mockUpdateSandbox.mockResolvedValue(makeSandbox());
   mockDeleteSandbox.mockResolvedValue({});
   mockTestInitScript.mockResolvedValue({ success: true, exitCode: 0, output: "ok\n" });
-  mockPullImage.mockResolvedValue({ ok: true, state: { image: "the-companion:latest", status: "pulling", progress: [] } });
+  mockPullImage.mockResolvedValue({ ok: true, state: { image: "companion-incus", status: "pulling", progress: [] } });
   mockGetHome.mockResolvedValue({ home: "/home/user", cwd: "/home/user/project" });
 });
 
@@ -589,42 +589,42 @@ describe("SandboxManager base image banner", () => {
 
   it("shows Not downloaded when base image status is idle", async () => {
     // When the base image has status "idle" or null, a "Not downloaded"
-    // label should appear with a Pull button.
-    mockGetImageStatus.mockResolvedValue({ image: "the-companion:latest", status: "idle", progress: [] });
+    // label should appear with a Rebuild button.
+    mockGetImageStatus.mockResolvedValue({ image: "companion-incus", status: "idle", progress: [] });
     render(<SandboxManager embedded />);
     await screen.findByText("Base Image");
     await screen.findByText("Not downloaded");
-    expect(screen.getByRole("button", { name: "Pull" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rebuild" })).toBeInTheDocument();
   });
 
   it("shows Pulling status when base image is being pulled", async () => {
     // When the base image status is "pulling", a spinner and
-    // "Pulling..." labels should appear (in both the badge and the button).
-    // We use getAllByText since "Pulling..." appears in multiple places.
+    // "Building..." labels should appear (in both the badge and the button).
+    // We use getAllByText since "Building..." appears in multiple places.
     mockGetImageStatus.mockResolvedValue({
-      image: "the-companion:latest",
+      image: "companion-incus",
       status: "pulling",
       progress: ["Downloading layer 1..."],
     });
     render(<SandboxManager embedded />);
     await screen.findByText("Base Image");
     await waitFor(() => {
-      const pullingElements = screen.getAllByText("Pulling...");
-      expect(pullingElements.length).toBeGreaterThan(0);
+      const buildingElements = screen.getAllByText("Building...");
+      expect(buildingElements.length).toBeGreaterThan(0);
     });
   });
 
-  it("shows Pull failed when base image status is error", async () => {
-    // When the base image pull status is "error", the banner should
-    // show "Pull failed" along with the error message.
+  it("shows Build failed when base image status is error", async () => {
+    // When the base image build status is "error", the banner should
+    // show "Build failed" along with the error message.
     mockGetImageStatus.mockResolvedValue({
-      image: "the-companion:latest",
+      image: "companion-incus",
       status: "error",
       progress: [],
       error: "Network timeout",
     });
     render(<SandboxManager embedded />);
-    await screen.findByText("Pull failed");
+    await screen.findByText("Build failed");
     expect(screen.getByText("Network timeout")).toBeInTheDocument();
   });
 
@@ -639,11 +639,11 @@ describe("SandboxManager base image banner", () => {
     expect(screen.queryByText("Base Image")).not.toBeInTheDocument();
   });
 
-  it("does not show Pull button when base image is ready", async () => {
-    // When the base image is already downloaded and ready, there is
-    // no need for a Pull button.
+  it("does not show Rebuild button when base image is ready", async () => {
+    // When the base image is already built and ready, there is
+    // no need for a Rebuild button.
     render(<SandboxManager embedded />);
     await screen.findByText("Ready");
-    expect(screen.queryByRole("button", { name: "Pull" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Rebuild" })).not.toBeInTheDocument();
   });
 });

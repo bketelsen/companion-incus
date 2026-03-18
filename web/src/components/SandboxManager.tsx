@@ -47,7 +47,7 @@ export function SandboxManager({ embedded = false }: Props) {
     api.getContainerStatus()
       .then((s) => setIncusAvailable(s.available))
       .catch(() => setIncusAvailable(false));
-    api.getImageStatus("the-companion:latest")
+    api.getImageStatus("companion-incus")
       .then((state) => setBaseImageState(state))
       .catch(() => {});
     api.getHome()
@@ -67,7 +67,7 @@ export function SandboxManager({ embedded = false }: Props) {
 
     if (!baseImagePollRef.current) {
       baseImagePollRef.current = setInterval(() => {
-        api.getImageStatus("the-companion:latest")
+        api.getImageStatus("companion-incus")
           .then((state) => setBaseImageState(state))
           .catch(() => {});
       }, 2000);
@@ -82,7 +82,7 @@ export function SandboxManager({ embedded = false }: Props) {
   }, [baseImageState]);
 
   function handlePullBaseImage() {
-    api.pullImage("the-companion:latest")
+    api.pullImage("companion-incus")
       .then((res) => {
         if (res.state) setBaseImageState(res.state);
       })
@@ -201,7 +201,7 @@ export function SandboxManager({ embedded = false }: Props) {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-[11px] font-medium text-cc-muted">Base Image</span>
-            <code className="text-[10px] font-mono-code text-cc-fg">the-companion:latest</code>
+            <code className="text-[10px] font-mono-code text-cc-fg">companion-incus</code>
             {baseImageState?.status === "ready" && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-500">
                 Ready
@@ -210,12 +210,12 @@ export function SandboxManager({ embedded = false }: Props) {
             {baseImageState?.status === "pulling" && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 flex items-center gap-1">
                 <span className="w-2.5 h-2.5 border border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
-                Pulling...
+                Building...
               </span>
             )}
             {baseImageState?.status === "error" && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-cc-error/10 text-cc-error">
-                Pull failed
+                Build failed
               </span>
             )}
             {(!baseImageState || baseImageState.status === "idle") && (
@@ -234,7 +234,7 @@ export function SandboxManager({ embedded = false }: Props) {
                   : "bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 cursor-pointer"
               }`}
             >
-              {isPulling ? "Pulling..." : "Pull"}
+              {isPulling ? "Building..." : "Rebuild"}
             </button>
           )}
         </div>
