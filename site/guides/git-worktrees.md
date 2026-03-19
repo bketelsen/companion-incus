@@ -8,6 +8,8 @@ Companion Incus lets you select a git branch when creating a session and optiona
 
 ## Branch picker
 
+![Home page with branch picker and worktree controls](/screenshots/home.png)
+
 On the home page, when creating a session in a git repository:
 
 1. A **branch dropdown** appears showing all local and remote branches

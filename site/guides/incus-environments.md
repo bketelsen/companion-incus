@@ -18,6 +18,8 @@ Each sandbox has:
 
 Create and manage sandboxes via the UI (**Environments** in the sidebar) or the [REST API](#rest-api).
 
+![Session creation showing container initialization progress](/screenshots/section-session-creation.png)
+
 ## Container lifecycle
 
 When a session starts with a sandbox selected, the following happens:

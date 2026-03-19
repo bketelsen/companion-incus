@@ -41,6 +41,8 @@ bunx companion-incus
 
 Open [http://localhost:3456](http://localhost:3456).
 
+![Companion Incus home page](/screenshots/home.png)
+
 ## Install globally
 
 ```bash
@@ -122,6 +124,8 @@ Type a prompt in the composer and press Enter. You'll see:
 - **Streaming responses** as the agent thinks
 - **Tool call blocks** showing each action (file reads, writes, bash commands)
 - **Task items** extracted from the agent's work plan
+
+![Chat with tool calls and code blocks](/screenshots/section-tool-calls.png)
 
 ### 4. Handle permissions
 

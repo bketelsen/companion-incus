@@ -22,6 +22,8 @@ Click **New Session** on the home page. Configure:
 
 Click **Start** to launch the session.
 
+![Session creation progress](/screenshots/section-session-creation.png)
+
 ### What happens at creation
 
 1. The server spawns a CLI subprocess (Claude Code or Codex) with `--sdk-url` pointing back to the server
@@ -67,6 +69,8 @@ The chat view displays messages in a timeline:
 - **Assistant messages**: Streaming agent responses
 - **Tool call blocks**: Expandable blocks showing the tool name, input, and output
 - **Permission banners**: Inline approve/deny buttons for sensitive actions
+
+![Chat timeline with messages and tool calls](/screenshots/section-tool-calls.png)
 
 ### Task panel
 
@@ -133,6 +137,8 @@ You can change the permission mode at any time during a session. The change take
 ### AI validation
 
 AI validation uses a separate model to evaluate tool calls before execution. It categorizes each request as safe, dangerous, or uncertain.
+
+![AI validation badges showing safe, dangerous, and uncertain categories](/screenshots/section-ai-validation.png)
 
 #### Setup
 

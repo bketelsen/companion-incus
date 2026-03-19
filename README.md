@@ -68,9 +68,24 @@ Open [http://localhost:3456](http://localhost:3456). The server runs in the back
 - **Dual-engine support**: designed for both Claude Code and Codex-backed flows.
 
 ## Screenshots
-| Chat + tool timeline | Permission flow |
-|---|---|
-| <img src="screenshot.png" alt="Main workspace" width="100%" /> | <img src="web/docs/screenshots/notification-section.png" alt="Permission and notifications" width="100%" /> |
+
+### Home & session creation
+<img src="screenshot.png" alt="Home page with session composer" width="100%" />
+
+### Chat timeline with tool calls
+<img src="web/docs/screenshots/section-tool-calls.png" alt="Chat with assistant messages, code blocks, and tool call results" width="100%" />
+
+### Permission approval
+<img src="web/docs/screenshots/playground-top.png" alt="Permission banners with Allow/Deny actions and plan approval" width="100%" />
+
+### Tool blocks & diff viewer
+<img src="web/docs/screenshots/section-tool-blocks.png" alt="Tool blocks showing file edits, searches, web fetches, and subagents" width="100%" />
+
+### AI validation
+<img src="web/docs/screenshots/section-ai-validation.png" alt="AI-powered permission validation with safe/dangerous/uncertain categories" width="100%" />
+
+### Settings
+<img src="web/docs/screenshots/settings.png" alt="Settings page with theme, webhooks, authentication, and AI validation" width="100%" />
 
 ## Architecture (simple)
 ```text
